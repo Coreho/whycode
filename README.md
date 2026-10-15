@@ -119,7 +119,11 @@ commands that let any agent act as WhyCode's AI:
   diff, the numbered suggestions and a fingerprint, and writes nothing.
 - `whycode write <file> --plan <file|-> --fingerprint <fp>
 [--accept-suggestions 1,3]` recomputes the result and writes it only if the
-  fingerprint matches, so what is written is exactly what the person saw.
+  fingerprint matches, so what is written is exactly what the person saw. The
+  fingerprint covers the file, the new code, the verification outcome, the
+  notes and every suggested comment rewrite in order, so a plan whose
+  suggestions changed after the preview is refused, and an accepted number
+  always means the suggestion that was shown.
 
 The pipeline is deterministic up to the AI call, which is what makes this
 work: the core's `captureCommentRequest` stops at the AI call and returns the

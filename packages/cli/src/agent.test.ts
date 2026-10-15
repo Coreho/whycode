@@ -182,6 +182,37 @@ describe("agent commands", () => {
     expect(await read("a.toy")).toBe("# go\nstop\n");
   });
 
+  it("write refuses a plan whose suggested comment text changed after the preview", async () => {
+    // The reported case: same code changes, different suggestion text.
+    await files({ "a.toy": "# go\nstop\n" });
+    const fingerprint = await preview("a.toy");
+    stdin = commentPlanReply({
+      insertions: [{ line: 2, position: "above", text: "Shut down." }],
+      existingCommentSuggestions: [
+        {
+          line: 1,
+          original: "# go",
+          suggested: "# Text nobody reviewed.",
+          reason: "Clearer.",
+        },
+      ],
+    });
+    expect(
+      await run(
+        "write",
+        "a.toy",
+        "--plan",
+        "-",
+        "--fingerprint",
+        fingerprint,
+        "--accept-suggestions",
+        "1",
+      ),
+    ).toBe(2);
+    expect(stderr).toMatch(/changed since the preview/);
+    expect(await read("a.toy")).toBe("# go\nstop\n");
+  });
+
   it("write rejects suggestion numbers the preview didn't list", async () => {
     await files({ "a.toy": "# go\nstop\n" });
     const fingerprint = await preview("a.toy");

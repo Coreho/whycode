@@ -85,4 +85,57 @@ describe("resultFingerprint", () => {
     expect(resultFingerprint(edited)).not.toBe(resultFingerprint(first));
     expect(resultFingerprint(noComments)).not.toBe(resultFingerprint(first));
   });
+
+  it("changes when a suggestion's text, target or order changes, though the code doesn't", async () => {
+    const withSuggestions = (
+      suggestions: { line: number; suggested: string }[],
+    ) =>
+      processWithReply(
+        { path: "app.toy", code: "# one\nstart\n# two\nstop\n" },
+        config,
+        adapters,
+        commentPlanReply({
+          existingCommentSuggestions: suggestions.map(
+            ({ line, suggested }) => ({
+              line,
+              original: line === 1 ? "# one" : "# two",
+              suggested,
+              reason: "clearer",
+            }),
+          ),
+        }),
+      );
+    const approved = await withSuggestions([
+      { line: 1, suggested: "# First." },
+      { line: 3, suggested: "# Second." },
+    ]);
+    const variants = await Promise.all([
+      withSuggestions([
+        { line: 1, suggested: "# Something else." },
+        { line: 3, suggested: "# Second." },
+      ]),
+      withSuggestions([
+        { line: 3, suggested: "# First." },
+        { line: 3, suggested: "# Second." },
+      ]),
+      withSuggestions([
+        { line: 3, suggested: "# Second." },
+        { line: 1, suggested: "# First." },
+      ]),
+    ]);
+    for (const variant of variants) {
+      expect(variant.outputCode).toBe(approved.outputCode);
+      expect(resultFingerprint(variant)).not.toBe(resultFingerprint(approved));
+    }
+  });
+
+  it("changes when verification discarded the comments", async () => {
+    const corrupting = [
+      createToyAdapter({ corruptOnReformat: (code) => `${code}\nextra` }),
+    ];
+    const discarded = await processWithReply(input, config, corrupting, plan);
+    const passed = await processWithReply(input, config, adapters, plan);
+    expect(discarded.verification).toBe("failed");
+    expect(resultFingerprint(discarded)).not.toBe(resultFingerprint(passed));
+  });
 });

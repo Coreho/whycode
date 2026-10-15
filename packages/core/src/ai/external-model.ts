@@ -54,17 +54,28 @@ export function processWithReply(
 }
 
 /**
- * Identifies one preview: the file as read and the result shown. Writing
- * later with the same fingerprint guarantees the person approved exactly
- * what is written.
+ * Identifies one preview: the file as read and everything shown about it,
+ * including each suggested comment rewrite in order. Writing later with the
+ * same fingerprint guarantees the person approved exactly what is written,
+ * and that an accepted suggestion number still means the same suggestion.
  */
 export function resultFingerprint(result: FileResult): string {
+  const shown = {
+    path: result.path,
+    originalCode: result.originalCode,
+    outputCode: result.outputCode,
+    mode: result.mode,
+    verification: result.verification,
+    warnings: result.warnings,
+    suggestions: result.commentSuggestions.map((suggestion) => [
+      suggestion.line,
+      suggestion.original,
+      suggestion.suggested,
+      suggestion.reason,
+    ]),
+  };
   return createHash("sha256")
-    .update(result.path)
-    .update("\0")
-    .update(result.originalCode)
-    .update("\0")
-    .update(result.outputCode)
+    .update(JSON.stringify(shown))
     .digest("hex")
     .slice(0, 16);
 }
