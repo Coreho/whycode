@@ -10,9 +10,10 @@ export interface InsertionResult {
   warnings: string[];
 }
 
-// Everything a JavaScript engine treats as a line break; a comment line must
-// not contain any, or the rest of the text would become code.
-const LINE_BREAKS = /\r\n|[\n\r\u2028\u2029]/;
+// Everything a JavaScript or C# compiler treats as a line break (C# also ends
+// a line at U+0085); a comment line must not contain any, or the rest of the
+// text would become code.
+const LINE_BREAKS = /\r\n|[\n\r\u0085\u2028\u2029]/;
 
 export function applyInsertions(
   code: string,

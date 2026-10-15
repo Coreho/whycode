@@ -63,6 +63,16 @@ describe("applyInsertions", () => {
     expect(result.code).toBe("// one\n// two\nx;");
   });
 
+  it("splits on U+0085, which ends a line comment in C#", () => {
+    const nextLine = String.fromCharCode(0x85);
+    const result = applyInsertions(
+      "x;",
+      [above(1, `one${nextLine}Environment.Exit(1);`)],
+      "//",
+    );
+    expect(result.code).toBe("// one\n// Environment.Exit(1);\nx;");
+  });
+
   it("strips a comment marker the AI included in the text", () => {
     const result = applyInsertions("x", [above(1, "# Already marked")], "#");
     expect(result.code).toBe("# Already marked\nx");

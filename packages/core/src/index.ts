@@ -73,6 +73,8 @@ export type {
 export { findAdapterForPath } from "./languages/adapter.js";
 export type { LanguageAdapter } from "./languages/adapter.js";
 export { defaultAdapters } from "./languages/index.js";
+export { createCSharpAdapter, csharpAdapter } from "./languages/csharp.js";
+export type { CSharpAdapterOptions } from "./languages/csharp.js";
 export { createGoAdapter, goAdapter } from "./languages/go.js";
 export type { GoAdapterOptions } from "./languages/go.js";
 export { createPythonAdapter, pythonAdapter } from "./languages/python.js";

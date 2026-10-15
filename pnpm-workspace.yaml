@@ -4,6 +4,7 @@ packages:
 # Tree-sitter grammar packages try to compile native Node bindings on install.
 # WhyCode only uses the .wasm files they ship, so their build scripts stay off.
 allowBuilds:
+  tree-sitter-c-sharp: false
   tree-sitter-go: false
   tree-sitter-javascript: false
   tree-sitter-python: false
