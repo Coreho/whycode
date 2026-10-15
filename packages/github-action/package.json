@@ -1,0 +1,24 @@
+{
+  "name": "@whycode/github-action",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WhyCode pull request review suggestions, without branch writes.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify-bundle": "node scripts/verify-bundle.mjs"
+  },
+  "dependencies": {
+    "@actions/core": "^3.0.1",
+    "@actions/github": "^9.1.1"
+  },
+  "devDependencies": {
+    "@whycode/core": "workspace:*",
+    "esbuild": "^0.28.2"
+  }
+}

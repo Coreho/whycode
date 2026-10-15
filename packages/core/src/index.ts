@@ -106,6 +106,16 @@ export { applyCommentSuggestions } from "./comments/suggestions.js";
 export type { SuggestionsResult } from "./comments/suggestions.js";
 
 export { createUnifiedDiff } from "./diff.js";
+export {
+  createLineSuggestions,
+  containsLineRange,
+  unifiedRightRanges,
+} from "./line-suggestions.js";
+export type {
+  LineRange,
+  LineSuggestion,
+  LineSuggestions,
+} from "./line-suggestions.js";
 export { compareTokenStreams, describeTokenMismatch } from "./verify.js";
 export type { TokenComparison } from "./verify.js";
 export { isSensitivePath, redactSecrets } from "./privacy.js";
