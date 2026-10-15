@@ -47,6 +47,8 @@ export {
 } from "./ai/external-model.js";
 export type { CapturedRequest } from "./ai/external-model.js";
 export type { ConfiguredProviderOptions } from "./ai/providers.js";
+export { createHostProvider, hostPrompt } from "./ai/host.js";
+export type { SendPrompt } from "./ai/host.js";
 export {
   commentPlanJsonSchema,
   commentPlanSchema,

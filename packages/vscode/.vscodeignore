@@ -1,0 +1,9 @@
+# Everything the extension runs is bundled into dist/ by scripts/build.mjs,
+# so the package holds only dist/, the manifest, README and LICENSE.
+src/**
+scripts/**
+node_modules/**
+tsconfig.json
+vitest.config.mts
+**/*.map
+**/*.vsix

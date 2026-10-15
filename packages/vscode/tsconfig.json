@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "types": ["node", "vscode"],
+    // esbuild bundles the source into one CommonJS file, so type-check it the
+    // way a bundler reads it: ES module syntax, bundler-style resolution.
+    "module": "preserve",
+    "moduleResolution": "bundler"
+  },
+  "include": ["src", "scripts", "vitest.config.mts"]
+}

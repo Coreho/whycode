@@ -7,6 +7,9 @@ allowBuilds:
   # esbuild's postinstall only verifies its platform binary, which the
   # @esbuild/* optional dependency already provides.
   esbuild: false
+  # vsce's signing helper fetches a signing binary on install; packaging the
+  # VS Code extension (vsce package) never signs, so it isn't needed.
+  "@vscode/vsce-sign": false
   tree-sitter-c-sharp: false
   tree-sitter-go: false
   tree-sitter-java: false

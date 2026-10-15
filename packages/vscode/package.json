@@ -1,0 +1,131 @@
+{
+  "name": "whycode-vscode",
+  "displayName": "WhyCode",
+  "description": "Cleans up AI-written code: formats it and adds comments that explain what it does and why, without changing its logic.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "whycode",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Coreho/whycode.git"
+  },
+  "homepage": "https://github.com/Coreho/whycode#readme",
+  "bugs": {
+    "url": "https://github.com/Coreho/whycode/issues"
+  },
+  "keywords": [
+    "ai",
+    "claude",
+    "comments",
+    "documentation",
+    "formatter"
+  ],
+  "categories": [
+    "Formatters",
+    "Other"
+  ],
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "main": "./dist/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "WhyCode runs your project's formatters, which read config files that can run code from the workspace."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "WhyCode reads and writes files on disk."
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "whycode.cleanUpFile",
+        "title": "Clean Up Current File",
+        "category": "WhyCode"
+      },
+      {
+        "command": "whycode.cleanUp",
+        "title": "Clean Up with WhyCode"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "whycode.cleanUpFile",
+          "when": "resourceScheme == file"
+        },
+        {
+          "command": "whycode.cleanUp",
+          "when": "false"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "whycode.cleanUp",
+          "when": "resourceScheme == file",
+          "group": "7_modification@9"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "whycode.cleanUpFile",
+          "when": "resourceScheme == file",
+          "group": "1_modification@9"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "WhyCode",
+      "properties": {
+        "whycode.commentLevel": {
+          "type": "string",
+          "enum": [
+            "light",
+            "medium",
+            "heavy"
+          ],
+          "enumDescriptions": [
+            "A summary above each function and class, plus comments on non-obvious decisions.",
+            "Light, plus a short note for each logical block inside functions.",
+            "Near line-by-line explanations, for people learning the code or the language."
+          ],
+          "default": "light",
+          "scope": "resource",
+          "markdownDescription": "How many comments WhyCode adds. When you set it, it overrides `commentLevel` in `.whycoderc.json`; when you don't, the file's value is used (`light` if there is none)."
+        },
+        "whycode.provider": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "vscode",
+            "anthropic",
+            "openrouter"
+          ],
+          "enumDescriptions": [
+            "A VS Code language model when one is available (Claude preferred), otherwise the API key provider from .whycoderc.json (Anthropic by default).",
+            "Always a VS Code language model, such as one from GitHub Copilot (Claude preferred).",
+            "The Anthropic API, with the key from the ANTHROPIC_API_KEY environment variable.",
+            "Claude through OpenRouter, with the key from the OPENROUTER_API_KEY environment variable."
+          ],
+          "default": "auto",
+          "scope": "window",
+          "markdownDescription": "Which AI WhyCode asks for comments. API keys are read only from the environment VS Code was started with, and never stored."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "package": "node scripts/build.mjs && vsce package --no-dependencies --out dist/whycode-vscode.vsix"
+  },
+  "devDependencies": {
+    "@types/vscode": "~1.95.0",
+    "@vscode/vsce": "^4.0.0",
+    "@whycode/core": "workspace:*",
+    "esbuild": "^0.28.2"
+  }
+}
