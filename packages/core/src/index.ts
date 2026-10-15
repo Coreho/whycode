@@ -41,6 +41,8 @@ export {
 export type { OpenRouterProviderOptions } from "./ai/openrouter.js";
 export { createConfiguredProvider } from "./ai/providers.js";
 export type { ConfiguredProviderOptions } from "./ai/providers.js";
+export { createHostProvider, hostPrompt } from "./ai/host.js";
+export type { SendPrompt } from "./ai/host.js";
 export {
   commentPlanJsonSchema,
   commentPlanSchema,
