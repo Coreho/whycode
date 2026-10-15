@@ -99,8 +99,10 @@ export type {
   SkippedPath,
 } from "./files/collect.js";
 export { findProjectRoot } from "./files/project-root.js";
-export { readSourceFile } from "./files/source-file.js";
-export type { SourceRead } from "./files/source-file.js";
+export { readSourceFile, writeSourceFile } from "./files/source-file.js";
+export type { SourceRead, SourceWrite } from "./files/source-file.js";
+export { applyCommentSuggestions } from "./comments/suggestions.js";
+export type { SuggestionsResult } from "./comments/suggestions.js";
 
 export { createUnifiedDiff } from "./diff.js";
 export { compareTokenStreams, describeTokenMismatch } from "./verify.js";

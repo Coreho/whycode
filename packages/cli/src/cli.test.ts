@@ -13,7 +13,7 @@ import {
   FakeAIProvider,
 } from "@whycode/core/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { CommandDeps } from "./check.js";
+import type { CommandDeps } from "./run.js";
 import { HELP_TEXT, runCli } from "./cli.js";
 import type { CliIo } from "./io.js";
 
@@ -47,6 +47,8 @@ describe("whycode check", () => {
     stdout: (text) => void (stdout += text),
     stderr: (text) => void (stderr += text),
     color: false,
+    interactive: false,
+    ask: () => Promise.resolve(undefined),
   });
 
   function deps(
@@ -74,7 +76,7 @@ describe("whycode check", () => {
     expect(stdout).toContain("--- a/src/app.toy\n+++ b/src/app.toy");
     expect(stdout).toContain("+# Shut down cleanly.\n");
     expect(stdout).toContain("1 file would change, 0 unchanged, 0 skipped.");
-    expect(stderr).toContain("Checking 1 file(s) with fake");
+    expect(stderr).toContain("Checking 1 file with fake");
   });
 
   it("never writes files", async () => {
@@ -302,6 +304,8 @@ describe("whycode", () => {
     stdout: (text) => void (stdout += text),
     stderr: (text) => void (stderr += text),
     color: false,
+    interactive: false,
+    ask: () => Promise.resolve(undefined),
   };
 
   beforeEach(() => {

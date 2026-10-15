@@ -1,10 +1,10 @@
-// Tests for reading source files: UTF-8 text is accepted byte-for-byte,
-// binary and non-UTF-8 files are refused so they can't be mangled.
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+// Tests for reading and writing source files: UTF-8 text is accepted
+// byte-for-byte, other files are refused, and edits made meanwhile are kept.
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { readSourceFile } from "./source-file.js";
+import { readSourceFile, writeSourceFile } from "./source-file.js";
 
 describe("readSourceFile", () => {
   let dir: string;
@@ -40,5 +40,37 @@ describe("readSourceFile", () => {
   it("refuses binary files", async () => {
     const result = await readBytes([0x7f, 0x45, 0x4c, 0x46, 0x00, 0x01]);
     expect(result).toEqual({ ok: false, reason: "looks like a binary file" });
+  });
+});
+
+describe("writeSourceFile", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "whycode-write-"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("writes when the file still holds what was read", async () => {
+    const path = join(dir, "a.py");
+    await writeFile(path, "x=1\r\n");
+    expect(await writeSourceFile(path, "x = 1\r\n", "x=1\r\n")).toEqual({
+      ok: true,
+    });
+    expect(await readFile(path, "utf8")).toBe("x = 1\r\n");
+  });
+
+  it("refuses to overwrite a file that changed since it was read", async () => {
+    const path = join(dir, "a.py");
+    await writeFile(path, "edited meanwhile\n");
+    const result = await writeSourceFile(path, "x = 1\n", "x=1\n");
+    expect(result).toEqual({
+      ok: false,
+      reason: "the file changed on disk since it was read",
+    });
+    expect(await readFile(path, "utf8")).toBe("edited meanwhile\n");
   });
 });

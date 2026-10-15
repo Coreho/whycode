@@ -57,7 +57,10 @@ describe("parseCommandLine", () => {
       /only works inside Claude Code or VS Code/,
     ],
     [["check", ".", "--model", " "], /needs a model name/],
-    [["check", ".", "--yes"], /Unknown option '--yes'/],
+    [["check", ".", "--yes"], /--yes only applies to "whycode fix"/],
+    [["check", ".", "--refactor"], /--refactor only applies/],
+    [["fix", ".", "--yes", "--refactor"], /can.t be combined with --refactor/],
+    [["fix", ".", "--bogus"], /Unknown option .--bogus./],
   ])("rejects %j", (argv, message) => {
     const parsed = parseCommandLine(argv);
     expect(parsed.kind).toBe("error");

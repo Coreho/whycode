@@ -7,18 +7,22 @@ export type ParsedArgs =
   | { kind: "help" }
   | { kind: "version" }
   | { kind: "check"; paths: string[]; overrides: ConfigOverrides }
+  | { kind: "fix"; paths: string[]; overrides: ConfigOverrides; yes: boolean }
   | { kind: "error"; message: string };
 
 const OPTIONS = {
   "comment-level": { type: "string" },
   provider: { type: "string" },
   model: { type: "string" },
+  refactor: { type: "boolean" },
+  yes: { type: "boolean", short: "y" },
   help: { type: "boolean", short: "h" },
   version: { type: "boolean", short: "v" },
 } as const;
 
 type FlagValues = ReturnType<typeof parseFlags>["values"];
 
+const COMMANDS = ["check", "fix"] as const;
 const COMMENT_LEVELS: readonly CommentLevel[] = ["light", "medium", "heavy"];
 const CLI_PROVIDERS = ["anthropic", "openrouter"] as const;
 
@@ -33,17 +37,35 @@ export function parseCommandLine(argv: readonly string[]): ParsedArgs {
   if (values.help === true) return { kind: "help" };
   if (values.version === true) return { kind: "version" };
 
-  const [command, ...paths] = positionals;
-  if (command === undefined) return usageError("Missing a command.");
-  if (command !== "check") return usageError(`Unknown command "${command}".`);
+  const [name, ...paths] = positionals;
+  if (name === undefined) return usageError("Missing a command.");
+  const command = COMMANDS.find((known) => known === name);
+  if (command === undefined) return usageError(`Unknown command "${name}".`);
   if (paths.length === 0) {
     return usageError(
-      `"whycode check" needs at least one file or directory, e.g. "whycode check src" (or "." for the whole project).`,
+      `"whycode ${command}" needs at least one file or directory, e.g. "whycode ${command} src" (or "." for the whole project).`,
     );
   }
   const overrides = parseOverrides(values);
   if (typeof overrides === "string") return usageError(overrides);
-  return { kind: "check", paths, overrides };
+
+  const yes = values.yes === true;
+  const refactor = values.refactor === true;
+  if (command === "check") {
+    if (yes || refactor) {
+      return usageError(
+        `${yes ? "--yes" : "--refactor"} only applies to "whycode fix".`,
+      );
+    }
+    return { kind: "check", paths, overrides };
+  }
+  if (yes && refactor) {
+    return usageError(
+      "--yes can't be combined with --refactor: every rewritten file needs your review.",
+    );
+  }
+  if (refactor) overrides.mode = "refactor";
+  return { kind: "fix", paths, overrides, yes };
 }
 
 function parseFlags(argv: readonly string[]) {

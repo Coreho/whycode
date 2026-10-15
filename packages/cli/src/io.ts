@@ -1,5 +1,7 @@
 // The CLI's connection to the outside world. Commands receive it as a
 // parameter, so tests can run them without a real terminal or environment.
+import { createInterface } from "node:readline/promises";
+
 export interface CliIo {
   /** Directory that relative paths on the command line are resolved against. */
   cwd: string;
@@ -10,10 +12,14 @@ export interface CliIo {
   stderr(text: string): void;
   /** Whether standard output can show colors. */
   color: boolean;
+  /** Whether a person is at a terminal who can answer questions. */
+  interactive: boolean;
+  /** Asks a question; undefined means input ended or the user pressed Ctrl+C. */
+  ask(question: string): Promise<string | undefined>;
 }
 
 export function processIo(): CliIo {
-  const { stdout, stderr } = process;
+  const { stdin, stdout, stderr } = process;
   return {
     cwd: process.cwd(),
     env: process.env,
@@ -21,5 +27,24 @@ export function processIo(): CliIo {
     stderr: (text) => void stderr.write(text),
     // hasColors() exists only on terminals and honors NO_COLOR / FORCE_COLOR.
     color: stdout.isTTY && stdout.hasColors(),
+    interactive: stdin.isTTY && stdout.isTTY,
+    ask: askOnTerminal,
   };
+}
+
+async function askOnTerminal(question: string): Promise<string | undefined> {
+  const prompt = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  try {
+    return await new Promise<string | undefined>((resolve) => {
+      // Ctrl+C and Ctrl+D end the review instead of killing WhyCode mid-write.
+      prompt.once("SIGINT", () => resolve(undefined));
+      prompt.once("close", () => resolve(undefined));
+      prompt.question(question).then(resolve, () => resolve(undefined));
+    });
+  } finally {
+    prompt.close();
+  }
 }

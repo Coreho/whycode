@@ -7,7 +7,8 @@ export async function forEachInOrder<T, R>(
   items: readonly T[],
   concurrency: number,
   run: (item: T) => Promise<R>,
-  onResult: (result: R) => void,
+  /** Awaited before the next result is handed over. */
+  onResult: (result: R) => void | Promise<void>,
 ): Promise<void> {
   // A sliding window: the oldest job is awaited before the next one starts.
   const window: Promise<Settled<R>>[] = [];
@@ -16,7 +17,7 @@ export async function forEachInOrder<T, R>(
     if (oldest === undefined) return;
     const settled = await oldest;
     if (!settled.ok) throw settled.error;
-    onResult(settled.value);
+    await onResult(settled.value);
   };
 
   for (const item of items) {

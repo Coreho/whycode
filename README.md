@@ -11,8 +11,8 @@ Claude Code plugin, a VS Code extension, and a GitHub Action.
 
 ## Status
 
-Early development. `whycode check` works from a source checkout (see
-[Using the CLI](#using-the-cli)); nothing is on npm yet. See `CLAUDE.md` for
+Early development. `whycode check` and `whycode fix` work from a source
+checkout (see [Using the CLI](#using-the-cli)); nothing is on npm yet. See `CLAUDE.md` for
 the full build plan.
 
 - **Phase 1 (scaffold): done.** pnpm monorepo, strict TypeScript, ESLint,
@@ -36,8 +36,10 @@ the full build plan.
   `--refactor` flag.
 - **Phase 6a (`whycode check` and file collection): done.** The first
   command you can run: a dry run that prints diffs and comment suggestions.
-- **Next: Phase 6b,** `whycode fix` with an interactive preview, then 6c
-  (publishing to npm).
+- **Phase 6b (`whycode fix`): done.** Reviews each file's diff and writes
+  only what you accept; suggested rewrites of existing comments are offered
+  one at a time.
+- **Next: Phase 6c,** making the CLI publishable to npm.
 
 ## Supported languages
 
@@ -94,6 +96,7 @@ The CLI isn't published yet, so run it from a checkout after `pnpm build`:
 export ANTHROPIC_API_KEY=sk-ant-...             # or OPENROUTER_API_KEY with --provider openrouter
 node packages/cli/dist/bin.js check src         # files and folders, any number
 node packages/cli/dist/bin.js check . --comment-level medium
+node packages/cli/dist/bin.js fix src           # review each file, write what you accept
 ```
 
 `whycode check <paths...>` is a dry run. It prints a unified diff for each
@@ -107,16 +110,38 @@ and results are printed in path order.
 | `--comment-level <level>` | `light` (default), `medium` or `heavy`    |
 | `--provider <name>`       | `anthropic` (default) or `openrouter`     |
 | `--model <id>`            | Claude model, default `claude-sonnet-5-5` |
+| `-y`, `--yes`             | `fix` only: accept every file's changes   |
+| `--refactor`              | `fix` only: let the AI rewrite the code   |
 | `-h`, `--help`            | Usage                                     |
 | `-v`, `--version`         | Version                                   |
 
-Flags override `.whycoderc.json`. `refactor` mode set in that file is ignored
-by `check`; refactor mode will only run when asked for with `--refactor`
-(Phase 6b).
+`whycode fix <paths...>` is the only command that writes. For each file that
+would change it shows the diff and asks `[y]es / [n]o / [s]kip / [q]uit`;
+only files you accept are written, with their original line endings, and a
+file edited while you were reviewing is never overwritten. Suggested rewrites
+of existing comments then come one at a time, each applied only if you accept
+it and only if it changes nothing but comment text (Python docstrings and Rust
+doc comments count as code, so rewrites of those are refused). A summary at
+the end lists the files written, rejected, skipped, not reviewed, and those
+where verification failed (so only formatting was offered).
 
-**Exit codes:** 0 when nothing would change, 1 when a file would change (so
-CI can use `check` as a gate), 2 on errors: bad usage, an invalid config, a
-missing API key, a path that doesn't exist, or a file the AI couldn't process.
+- `--yes` accepts every file's changes without asking. It never applies
+  suggestions for existing comments: those always need a person.
+- Without a terminal (in CI, or with piped input) and without `--yes`, `fix`
+  writes nothing and says why.
+- `--refactor` (or `"mode": "refactor"` in `.whycoderc.json`) lets the AI
+  rewrite the code, so logic will change. `fix` warns and asks for
+  confirmation first, shows the AI's list of changes and the result of your
+  `testCommand` with each diff, and every file needs your review: `--yes` is
+  refused. `check` always runs in safe mode.
+
+Flags override `.whycoderc.json`.
+
+**Exit codes:** `check` exits 0 when nothing would change and 1 when a file
+would change, so CI can use it as a gate. `fix` exits 0 when it finishes,
+whatever you chose. Both exit 2 on errors: bad usage, an invalid config, a
+missing API key, a path that doesn't exist, or a file that couldn't be
+processed or written.
 
 **Which files are read.** The project root is the git repository's top
 folder, or else the nearest folder with a `.whycoderc.json`. Within it:
@@ -372,7 +397,7 @@ packages/
       process.ts         # runs external formatters (ruff, gofmt, rustfmt)
       test-runner.ts     # runs testCommand against a refactored file
       ai/                # providers (Anthropic, OpenRouter), schema, prompts
-      comments/          # comment insertion
+      comments/          # comment insertion, applying accepted suggestions
       files/             # file collection (.gitignore, globs), project
                          # root, reading source files
       languages/         # adapters (python.ts, typescript.ts, go.ts,
@@ -386,7 +411,9 @@ packages/
       bin.ts             # the executable
       cli.ts             # argument dispatch, help, exit codes
       args.ts            # flag parsing (node:util parseArgs)
+      run.ts             # steps shared by check and fix
       check.ts           # `whycode check`
+      fix.ts             # `whycode fix`: review, write, suggestions
       report.ts          # terminal output: diffs, suggestions, skips
 ```
 

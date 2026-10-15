@@ -15,9 +15,26 @@ describe("forEachInOrder", () => {
         await sleep(ms);
         return ms;
       },
-      (result) => delivered.push(result),
+      (result) => {
+        delivered.push(result);
+      },
     );
     expect(delivered).toEqual([30, 0, 10, 0]);
+  });
+
+  it("waits for an async handler before handing over the next result", async () => {
+    const events: string[] = [];
+    await forEachInOrder(
+      ["a", "b"],
+      2,
+      (item) => Promise.resolve(item),
+      async (item) => {
+        events.push(`start ${item}`);
+        await sleep(5);
+        events.push(`end ${item}`);
+      },
+    );
+    expect(events).toEqual(["start a", "end a", "start b", "end b"]);
   });
 
   it("never runs more than the given number of items at once", async () => {
@@ -46,7 +63,9 @@ describe("forEachInOrder", () => {
         item === "boom"
           ? Promise.reject(new Error("boom"))
           : Promise.resolve(item),
-      (result) => delivered.push(result),
+      (result) => {
+        delivered.push(result);
+      },
     );
     await expect(run).rejects.toThrow("boom");
     expect(delivered).toEqual(["a"]);

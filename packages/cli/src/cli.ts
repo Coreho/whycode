@@ -4,9 +4,11 @@
 import { readFileSync } from "node:fs";
 import { createConfiguredProvider, defaultAdapters } from "@whycode/core";
 import { parseCommandLine } from "./args.js";
-import type { CommandDeps } from "./check.js";
-import { EXIT_CODES, runCheck } from "./check.js";
+import { runCheck } from "./check.js";
+import { runFix } from "./fix.js";
 import type { CliIo } from "./io.js";
+import type { CommandDeps } from "./run.js";
+import { EXIT_CODES } from "./run.js";
 
 export const defaultDeps: CommandDeps = {
   adapters: defaultAdapters,
@@ -16,12 +18,14 @@ export const defaultDeps: CommandDeps = {
 };
 
 export const HELP_TEXT = `whycode: formats AI-written code and adds comments that explain what it does and why.
-Program logic is never changed.
+Program logic is never changed (unless you ask for --refactor).
 
 Usage:
   whycode check <paths...>    Show the diffs and comment suggestions without writing anything.
                               Exits 0 if nothing would change, 1 if something would,
                               and 2 on errors (bad usage, or a file that failed).
+  whycode fix <paths...>      Show each file's diff and ask whether to apply it, then offer
+                              suggested rewrites of existing comments one at a time.
 
 Paths can be files or directories. Files ignored by .gitignore and files
 that may hold secrets (.env, *.pem, *.key, ...) are never read.
@@ -31,6 +35,10 @@ Options:
   --provider <name>           anthropic (default, needs ANTHROPIC_API_KEY) or
                               openrouter (needs OPENROUTER_API_KEY)
   --model <id>                Claude model to use (default: claude-sonnet-5-5)
+  -y, --yes                   fix: apply every file's changes without asking. Existing
+                              comments are still never edited. Not allowed with --refactor.
+  --refactor                  fix: let the AI rewrite the code. Logic WILL change; asks
+                              for confirmation, and every file needs your review.
   -h, --help                  Show this help
   -v, --version               Show the version
 
@@ -56,6 +64,8 @@ export async function runCli(
         return EXIT_CODES.error;
       case "check":
         return await runCheck(args.paths, args.overrides, io, deps);
+      case "fix":
+        return await runFix(args.paths, args, io, deps);
     }
   } catch (error) {
     // Config errors, a missing API key and the like: the message says what to fix.
