@@ -204,49 +204,136 @@ async function runFullMode(
     });
   };
 
-  // Step 5: insert comments, then re-format. A formatter that now rejects
-  // the code means the comments broke it.
-  const inserted = insertComments(
+  // Steps 5 and 6: insert the comments, re-format and verify. If that fails,
+  // keep the comments that are safe on their own and try once more, so one
+  // badly placed comment doesn't cost all the others.
+  const verification = {
+    adapter,
+    input: job.input,
     formattedCode,
-    plan.insertions,
-    adapter.lineComment,
-    warnings,
-  );
-  let reformatted: string;
-  try {
-    reformatted = (await formatCode(adapter, inserted.code, job.input)).code;
-  } catch (error) {
-    return keepFormattingOnly(
-      `the formatter rejected the code after they were inserted (${errorMessage(error)})`,
-    );
-  }
-
-  // Step 6: verify the token stream is unchanged.
-  const comparison = compareTokenStreams(
     tokensBefore,
-    await adapter.tokens(reformatted),
-  );
-  if (!comparison.equal) {
-    return keepFormattingOnly(
-      `the code's tokens changed (${describeTokenMismatch(comparison)})`,
-    );
+  };
+  let attempt = await insertAndVerify(verification, plan.insertions);
+  if (!attempt.ok) {
+    const salvage = await safeInsertions(verification, plan.insertions);
+    const retry =
+      salvage.kept.length > 0 && salvage.dropped.length > 0
+        ? await insertAndVerify(verification, salvage.kept)
+        : undefined;
+    if (retry?.ok !== true) return keepFormattingOnly(attempt.reason);
+    warnings.push(...salvage.dropped);
+    attempt = retry;
   }
+  warnings.push(...attempt.warnings);
 
   // Step 7: produce the result.
   return buildResult(job, {
     ...base,
-    code: reformatted,
+    code: attempt.code,
     formatted: formatting.formatted,
     verification: "passed",
     suggestions: validSuggestions(
       plan.suggestions,
       formattedCode,
-      inserted.mapLine,
+      attempt.mapLine,
       warnings,
     ),
-    commentsAdded: inserted.inserted,
+    commentsAdded: attempt.inserted,
     warnings,
   });
+}
+
+/** What comment insertions are checked against. */
+interface VerificationBase {
+  adapter: LanguageAdapter;
+  input: FileInput;
+  formattedCode: string;
+  tokensBefore: readonly string[];
+}
+
+type VerifiedInsertion =
+  | {
+      ok: true;
+      code: string;
+      mapLine: (line: number) => number;
+      inserted: number;
+      warnings: string[];
+    }
+  | { ok: false; reason: string };
+
+/**
+ * Inserts the comments, re-formats, and checks the token stream is
+ * unchanged. A formatter that now rejects the code means the comments broke it.
+ */
+async function insertAndVerify(
+  base: VerificationBase,
+  insertions: readonly CommentInsertion[],
+): Promise<VerifiedInsertion> {
+  const warnings: string[] = [];
+  const inserted = insertComments(
+    base.formattedCode,
+    insertions,
+    base.adapter.lineComment,
+    warnings,
+  );
+  let reformatted: string;
+  try {
+    reformatted = (await formatCode(base.adapter, inserted.code, base.input))
+      .code;
+  } catch (error) {
+    return {
+      ok: false,
+      reason: `the formatter rejected the code after they were inserted (${errorMessage(error)})`,
+    };
+  }
+  const comparison = compareTokenStreams(
+    base.tokensBefore,
+    await base.adapter.tokens(reformatted),
+  );
+  if (!comparison.equal) {
+    return {
+      ok: false,
+      reason: `the code's tokens changed (${describeTokenMismatch(comparison)})`,
+    };
+  }
+  return {
+    ok: true,
+    code: reformatted,
+    mapLine: inserted.mapLine,
+    inserted: inserted.inserted,
+    warnings,
+  };
+}
+
+/**
+ * Checks each insertion on its own with tree-sitter only (no formatter run,
+ * which can take seconds), keeping those that leave the tokens unchanged.
+ */
+async function safeInsertions(
+  base: VerificationBase,
+  insertions: readonly CommentInsertion[],
+): Promise<{ kept: CommentInsertion[]; dropped: string[] }> {
+  const kept: CommentInsertion[] = [];
+  const dropped: string[] = [];
+  for (const insertion of insertions) {
+    const single = applyInsertions(
+      base.formattedCode,
+      [insertion],
+      base.adapter.lineComment,
+    );
+    const comparison = compareTokenStreams(
+      base.tokensBefore,
+      await base.adapter.tokens(single.code),
+    );
+    if (comparison.equal) {
+      kept.push(insertion);
+    } else {
+      dropped.push(
+        `Dropped the comment for line ${insertion.line}: it would change the code's tokens (${describeTokenMismatch(comparison)}).`,
+      );
+    }
+  }
+  return { kept, dropped };
 }
 
 /** Runs the adapter's formatter and normalizes its output to LF line endings. */

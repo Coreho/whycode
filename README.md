@@ -364,8 +364,12 @@ and returns a result. It never writes to disk.
    Existing lines are never edited. Comment text loses control characters and
    trailing backslashes, and every line break in it starts a new comment line.
 7. **Verify:** the token stream must exactly match step 4. If it doesn't, or if
-   the formatter rejects the code once the comments are in, the AI changes are
-   thrown away and only the formatting is kept.
+   the formatter rejects the code once the comments are in, each comment is
+   checked on its own with tree-sitter (no formatter run): the ones that would
+   change the tokens are dropped with a warning naming their line, and the
+   rest are inserted, formatted and verified once more. If that still fails,
+   the AI changes are thrown away and only the formatting is kept. The
+   formatter runs at most three times per file.
 8. **Return** the new code (with the original line endings and byte-order
    mark), a unified diff, the suggestions for existing comments, and any
    warnings.
@@ -376,17 +380,17 @@ and returns a result. It never writes to disk.
 `fixtures/*/verification.*`, a file per language full of risky constructs (Go,
 Rust, C# and Java have their own `src/languages/<lang>.verification.test.ts`):
 
-| Risk                                                                 | What happens                                                           |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Comment lands inside a multi-line string or template literal         | Caught: the string's contents changed, so the AI changes are discarded |
-| Comment lands in JSX text                                            | Caught the same way                                                    |
-| Comment after a backslash line continuation                          | Refused before insertion, with a warning                               |
-| Comment above a line-1 shebang or a line-1/2 encoding declaration    | Refused before insertion, with a warning                               |
-| Comment text containing newlines, `*/`, or code                      | Neutralized: every line becomes its own comment line                   |
-| Comment between JSX attributes or inside a JSX expression            | Kept: it's valid code and the tokens don't change                      |
-| A logic change slipping in (operator, identifier, removed statement) | Caught, and the warning names the first differing token                |
-| A comment makes the formatter split a list and add a trailing comma  | Kept: a trailing comma that can't change meaning isn't a token         |
-| A trailing comma that does change meaning, such as `(x)` to `(x,)`   | Caught                                                                 |
+| Risk                                                                 | What happens                                                                              |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Comment lands inside a multi-line string or template literal         | Caught: the string's contents changed, so that comment is dropped and the others are kept |
+| Comment lands in JSX text                                            | Caught and dropped the same way                                                           |
+| Comment after a backslash line continuation                          | Refused before insertion, with a warning                                                  |
+| Comment above a line-1 shebang or a line-1/2 encoding declaration    | Refused before insertion, with a warning                                                  |
+| Comment text containing newlines, `*/`, or code                      | Neutralized: every line becomes its own comment line                                      |
+| Comment between JSX attributes or inside a JSX expression            | Kept: it's valid code and the tokens don't change                                         |
+| A logic change slipping in (operator, identifier, removed statement) | Caught, and the warning names the first differing token                                   |
+| A comment makes the formatter split a list and add a trailing comma  | Kept: a trailing comma that can't change meaning isn't a token                            |
+| A trailing comma that does change meaning, such as `(x)` to `(x,)`   | Caught                                                                                    |
 
 Switching off the token comparison makes every "caught" test fail, so the
 suite really depends on it.
