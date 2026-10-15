@@ -9,7 +9,7 @@ import type {
   LanguageAdapter,
   WhycodeConfig,
 } from "@whycode/core";
-import { processFile, readSourceFile } from "@whycode/core";
+import { fileVerdict, processFile, readSourceFile } from "@whycode/core";
 import * as vscode from "vscode";
 import type { Env } from "./ai.js";
 import { chooseAI } from "./ai.js";
@@ -215,6 +215,7 @@ async function reviewAll(
       continue;
     }
     const { result } = item;
+    log(`${result.path}: ${forLog(fileVerdict(result).text)}`);
     // Collection already filtered out what the pipeline refuses, so a file
     // it skips is one that failed, e.g. because the AI call did.
     if (result.status === "skipped") {

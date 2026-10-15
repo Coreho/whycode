@@ -1,8 +1,10 @@
 // `whycode check`: a dry run. It collects the files, runs the pipeline on
-// each and prints what would change; nothing is written. The exit code is 1
-// when any file would change, so CI can use it as a gate, and 2 when a file
-// could not be processed (e.g. the AI call failed), so a failure never passes.
+// each and prints a verdict and what would change; nothing is written. The
+// exit code is 1 when any file would change or had its comments discarded,
+// so CI can use it as a gate, and 2 when a file could not be processed (e.g.
+// the AI call failed), so a failure never passes.
 import type { ConfigOverrides } from "@whycode/core";
+import { fileVerdict } from "@whycode/core";
 import { forEachInOrder } from "./in-order.js";
 import type { CliIo } from "./io.js";
 import type { CheckSummary, Paint, Skip } from "./report.js";
@@ -12,6 +14,7 @@ import {
   renderFileResult,
   renderSkips,
   renderSummary,
+  renderVerdict,
 } from "./report.js";
 import type { CommandDeps, FileOutcome } from "./run.js";
 import {
@@ -58,6 +61,7 @@ class CheckReport {
     unchanged: 0,
     skipped: 0,
     failed: 0,
+    discarded: 0,
     suggestions: 0,
   };
 
@@ -73,6 +77,8 @@ class CheckReport {
   add(outcome: FileOutcome): void {
     if ("skip" in outcome) return this.addSkips([outcome.skip]);
     const { result } = outcome;
+    const verdict = fileVerdict(result);
+    this.io.stdout(renderVerdict(result.path, verdict, this.paint));
     // Collection already filtered out what the pipeline would refuse, so a
     // file it skips is one that failed, e.g. because the AI call did.
     if (result.status === "skipped") {
@@ -84,6 +90,7 @@ class CheckReport {
     }
     this.summary[result.status] += 1;
     this.summary.suggestions += result.commentSuggestions.length;
+    if (verdict.kind === "discarded") this.summary.discarded += 1;
     const text = renderFileResult(result, this.paint);
     if (text !== "") this.io.stdout(`${text}\n`);
   }
@@ -100,6 +107,9 @@ class CheckReport {
     }
     this.io.stdout(renderSummary(this.summary, this.paint));
     if (this.summary.failed > 0) return EXIT_CODES.error;
-    return this.summary.changed > 0 ? EXIT_CODES.changes : EXIT_CODES.clean;
+    // Discarded comments need a look too, so they never pass as clean.
+    const needsAttention =
+      this.summary.changed > 0 || this.summary.discarded > 0;
+    return needsAttention ? EXIT_CODES.changes : EXIT_CODES.clean;
   }
 }

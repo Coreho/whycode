@@ -94,7 +94,28 @@ describe("whycode check", () => {
     await files({ "app.toy": "run\n" });
     const code = await runCli(["check", "app.toy"], io(), deps(noComments));
     expect(code).toBe(0);
-    expect(stdout).toBe("0 files would change, 1 unchanged, 0 skipped.\n");
+    expect(stdout).toBe(
+      "app.toy: nothing to change\n0 files would change, 1 unchanged, 0 skipped.\n",
+    );
+  });
+
+  it("exits 1 and says so when comments were discarded, even with no diff", async () => {
+    await files({ "app.toy": "run\n" });
+    const corrupting: CommandDeps = {
+      ...deps(commentAboveFirstMatch(/run/, "Go.")),
+      adapters: [
+        createToyAdapter({ corruptOnReformat: (code) => `${code}\nextra` }),
+      ],
+    };
+    const code = await runCli(["check", "app.toy"], io(), corrupting);
+    expect(code).toBe(1);
+    expect(stdout).toContain(
+      "app.toy: comments discarded because verification failed; nothing else to change",
+    );
+    expect(stdout).toMatch(
+      /Notes for app\.toy:\n {2}- AI comments were discarded/,
+    );
+    expect(stdout).toContain("1 with comments discarded");
   });
 
   it("prints suggestions for existing comments", async () => {

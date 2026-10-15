@@ -2,6 +2,7 @@
 import {
   applyCommentSuggestions,
   createLineSuggestions,
+  fileVerdict,
   unifiedRightRanges,
 } from "@whycode/core";
 import type {
@@ -52,17 +53,20 @@ export async function reviewFile(
   patch: string | undefined,
   adapters: readonly LanguageAdapter[],
 ): Promise<FileReview> {
-  const review: FileReview = { comments: [], notes: [] };
+  // The same verdict wording as every other front-end leads the notes; a
+  // file with nothing to say adds none, so a clean PR gets no review.
+  const verdict = fileVerdict(result);
+  const quiet =
+    verdict.kind === "unchanged" && result.commentSuggestions.length === 0;
+  const review: FileReview = {
+    comments: [],
+    notes: quiet ? [] : [verdict.text],
+  };
   if (result.verification === "failed") {
-    review.notes.push("verification failed; no suggestions posted");
+    review.notes.push("no suggestions posted");
     return review;
   }
-  if (result.status === "skipped") {
-    review.notes.push(
-      `processing failed: ${result.skipReason ?? "file skipped"}`,
-    );
-    return review;
-  }
+  if (result.status === "skipped") return review;
   const ranges = unifiedRightRanges(patch);
   const mapped = createLineSuggestions(
     result.originalCode,
@@ -112,8 +116,6 @@ export async function reviewFile(
       `${withheld} existing-comment suggestion(s) outside the diff, overlapping another suggestion, or not safely mappable to the PR head`,
     );
   review.comments = edits.map((edit) => reviewComment(result.path, edit));
-  if (result.mode === "comments-only" && review.comments.length)
-    review.notes.push("comments-only language; verification not run");
   review.notes.push(...result.warnings);
   return review;
 }

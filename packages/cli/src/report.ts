@@ -3,7 +3,12 @@
 // comment suggestions, and at the end the skipped paths grouped by reason
 // and a summary. Pure functions, no I/O.
 import { styleText } from "node:util";
-import type { ExistingCommentSuggestion, FileResult } from "@whycode/core";
+import type {
+  ExistingCommentSuggestion,
+  FileResult,
+  FileVerdict,
+  VerdictKind,
+} from "@whycode/core";
 
 export interface Skip {
   path: string;
@@ -18,6 +23,24 @@ export function painter(color: boolean): Paint {
   return color
     ? (style, text) => styleText(style, text, { validateStream: false })
     : (_style, text) => text;
+}
+
+const VERDICT_STYLES: Readonly<Record<VerdictKind, TextStyle>> = {
+  unchanged: "dim",
+  verified: "green",
+  discarded: "yellow",
+  unverified: "yellow",
+  refactored: ["bold", "red"],
+  failed: "red",
+};
+
+/** "src/a.py: 2 comments added; ..." on one line, colored by outcome. */
+export function renderVerdict(
+  path: string,
+  verdict: FileVerdict,
+  paint: Paint,
+): string {
+  return `${paint(VERDICT_STYLES[verdict.kind], `${path}: ${verdict.text}`)}\n`;
 }
 
 /** Most paths shown per group; the rest are counted. */
@@ -213,6 +236,8 @@ export interface CheckSummary {
   unchanged: number;
   skipped: number;
   failed: number;
+  /** Files whose AI comments failed verification and were thrown away. */
+  discarded: number;
   suggestions: number;
 }
 
@@ -222,6 +247,9 @@ export function renderSummary(summary: CheckSummary, paint: Paint): string {
     `${summary.unchanged} unchanged`,
     `${summary.skipped} skipped`,
   ];
+  if (summary.discarded > 0) {
+    parts.push(`${summary.discarded} with comments discarded`);
+  }
   if (summary.failed > 0) parts.push(`${summary.failed} failed`);
   if (summary.suggestions > 0) {
     parts.push(`${countOf(summary.suggestions, "comment suggestion")}`);

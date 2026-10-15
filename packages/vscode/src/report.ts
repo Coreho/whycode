@@ -16,7 +16,7 @@ export interface RunTally {
   unchanged: string[];
   /** Left alone because the user stopped the review. */
   notReviewed: string[];
-  /** The AI's comments failed the logic check, so only formatting was offered. */
+  /** The AI's comments failed verification, so only formatting was offered. */
   formattingOnly: string[];
   /** Never sent to the AI: gitignored, sensitive, unsupported, unsaved... */
   skipped: Skip[];
@@ -60,7 +60,7 @@ export function renderTally(tally: RunTally): string[] {
     ...group("Discarded", tally.discarded),
     ...group("Not reviewed (you stopped)", tally.notReviewed),
     ...group(
-      "Only formatting offered (the AI's comments failed the logic check)",
+      "Comments discarded because verification failed; only formatting offered",
       tally.formattingOnly,
     ),
     ...group("Unchanged", tally.unchanged),

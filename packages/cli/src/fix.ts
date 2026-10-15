@@ -12,6 +12,7 @@ import type {
 import {
   applyCommentSuggestions,
   createFileSwapTestRunner,
+  fileVerdict,
   writeSourceFile,
 } from "@whycode/core";
 import { forEachInOrder } from "./in-order.js";
@@ -24,6 +25,7 @@ import {
   renderPreview,
   renderSkips,
   renderSuggestion,
+  renderVerdict,
 } from "./report.js";
 import type { CommandDeps, FileOutcome, PreparedRun } from "./run.js";
 import {
@@ -162,6 +164,7 @@ class FixSession {
     if (this.stopped) return this.markNotReviewed([outcome.file.path]);
     if ("skip" in outcome) return this.addSkips([outcome.skip]);
     const { result, file } = outcome;
+    this.io.stdout(renderVerdict(result.path, fileVerdict(result), this.paint));
     if (result.status === "skipped") {
       this.failures.push({
         path: result.path,
@@ -169,15 +172,19 @@ class FixSession {
       });
       return;
     }
-    if (result.verification === "failed")
+    if (result.verification === "failed") {
       this.verificationFailed.push(result.path);
+    }
     const hasChanges = result.status === "changed";
+    const preview = renderPreview(result, this.paint);
     if (!hasChanges && result.commentSuggestions.length === 0) {
+      // Nothing to write, but notes (such as discarded comments) still show.
+      if (preview !== "") this.io.stdout(`${preview}\n`);
       this.unchanged.push(result.path);
       return;
     }
 
-    this.io.stdout(`${renderPreview(result, this.paint)}\n`);
+    this.io.stdout(`${preview}\n`);
     const decision = hasChanges ? await this.decideFile(result.path) : "skip";
     if (decision === "quit") {
       this.stopped = true;

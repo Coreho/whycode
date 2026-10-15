@@ -7,6 +7,8 @@ export interface InsertionResult {
   code: string;
   /** lineMap[oldLine - 1] is that line's 1-based number after insertion. */
   lineMap: number[];
+  /** How many of the insertions were placed; the rest were dropped with a warning. */
+  inserted: number;
   warnings: string[];
 }
 
@@ -43,6 +45,7 @@ export function applyInsertions(
   return {
     code: lines.join("\n"),
     lineMap: buildLineMap(lineCount, commentLinesByTarget),
+    inserted: placeable.length,
     warnings,
   };
 }

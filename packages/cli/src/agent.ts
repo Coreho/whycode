@@ -16,6 +16,7 @@ import type {
 import {
   applyCommentSuggestions,
   captureCommentRequest,
+  fileVerdict,
   processWithReply,
   readSourceFile,
   resultFingerprint,
@@ -23,7 +24,12 @@ import {
 } from "@whycode/core";
 import type { CliIo } from "./io.js";
 import type { Skip } from "./report.js";
-import { painter, renderPreview, renderSuggestion } from "./report.js";
+import {
+  painter,
+  renderPreview,
+  renderSuggestion,
+  renderVerdict,
+} from "./report.js";
 import type { CommandDeps, PreparedRun } from "./run.js";
 import { EXIT_CODES, prepareRun } from "./run.js";
 
@@ -131,11 +137,15 @@ export async function runPreview(
   const outcome = await processWithPlan(path, planSource, io, deps);
   if (outcome === undefined) return EXIT_CODES.error;
   const { result } = outcome;
+  const paint = painter(io.color);
   if (result.status === "unchanged" && result.commentSuggestions.length === 0) {
-    io.stdout(`No changes for ${result.path}.\n`);
+    // Nothing to write, but say why: the comments may have been discarded.
+    const notes = renderPreview(result, paint);
+    io.stdout(renderVerdict(result.path, fileVerdict(result), paint));
+    io.stdout(`${notes}Nothing to write for ${result.path}.\n`);
     return EXIT_CODES.clean;
   }
-  io.stdout(renderAgentPreview(result, painter(io.color)));
+  io.stdout(renderAgentPreview(result, paint));
   return EXIT_CODES.clean;
 }
 
@@ -155,7 +165,7 @@ function renderAgentPreview(
   const fingerprint = resultFingerprint(result);
   const accept = total > 0 ? " [--accept-suggestions <numbers, e.g. 1,3>]" : "";
   return [
-    `Preview of ${result.path} (verification: ${result.verification}).`,
+    renderVerdict(result.path, fileVerdict(result), paint).trimEnd(),
     renderPreview(result, paint),
     ...suggestions,
     `Fingerprint: ${fingerprint}`,

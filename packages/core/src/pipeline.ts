@@ -66,6 +66,8 @@ export interface FileResult {
   diff: string;
   /** Suggested rewrites of existing comments; line numbers refer to outputCode. */
   commentSuggestions: ExistingCommentSuggestion[];
+  /** AI comments inserted into outputCode (0 when they were discarded). */
+  commentsAdded: number;
   /** True for refactor-mode rewrites: front-ends must warn that logic may have changed. */
   changesLogic: boolean;
   /** The AI's list of what it changed in refactor mode; empty otherwise. */
@@ -242,6 +244,7 @@ async function runFullMode(
       inserted.mapLine,
       warnings,
     ),
+    commentsAdded: inserted.inserted,
     warnings,
   });
 }
@@ -286,6 +289,7 @@ async function runCommentsOnlyMode(
       inserted.mapLine,
       warnings,
     ),
+    commentsAdded: inserted.inserted,
     warnings,
   });
 }
@@ -485,12 +489,13 @@ function insertComments(
   insertions: readonly CommentInsertion[],
   lineComment: string,
   warnings: string[],
-): { code: string; mapLine: (line: number) => number } {
+): { code: string; mapLine: (line: number) => number; inserted: number } {
   const result = applyInsertions(code, insertions, lineComment);
   warnings.push(...result.warnings);
   return {
     code: result.code,
     mapLine: (line) => result.lineMap[line - 1] ?? line,
+    inserted: result.inserted,
   };
 }
 
@@ -525,6 +530,8 @@ interface ResultFields {
   suggestions: ExistingCommentSuggestion[];
   /** Refactor mode only: the AI's list of changes. */
   refactorChanges?: string[];
+  /** AI comments in the final code; 0 when none were kept. */
+  commentsAdded?: number;
   warnings: string[];
 }
 
@@ -544,6 +551,7 @@ function buildResult(job: Job, fields: ResultFields): FileResult {
     // Diffed on LF text so CRLF files don't show "\r" in previews.
     diff: createUnifiedDiff(job.input.path, job.code, fields.code),
     commentSuggestions: fields.suggestions,
+    commentsAdded: changed ? (fields.commentsAdded ?? 0) : 0,
     changesLogic: fields.mode === "refactor",
     refactorChanges: fields.refactorChanges ?? [],
     warnings: fields.warnings,
@@ -567,6 +575,7 @@ function skippedResult(
     outputCode: input.code,
     diff: "",
     commentSuggestions: [],
+    commentsAdded: 0,
     changesLogic: false,
     refactorChanges: [],
     warnings: [],

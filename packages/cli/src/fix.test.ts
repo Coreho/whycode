@@ -252,6 +252,25 @@ describe("whycode fix", () => {
     );
   });
 
+  it("shows the verdict and notes for a file with nothing to write", async () => {
+    await files({ "a.toy": "alpha\n" });
+    const corrupting = createToyAdapter({
+      corruptOnReformat: (code) => `${code}\nextra`,
+    });
+    await runCli(
+      ["fix", "a.toy"],
+      terminal([]),
+      deps(commentOn("alpha"), corrupting),
+    );
+    expect(questions).toEqual([]);
+    expect(stdout).toContain(
+      "a.toy: comments discarded because verification failed; nothing else to change",
+    );
+    expect(stdout).toMatch(
+      /Notes for a\.toy:\n {2}- AI comments were discarded/,
+    );
+  });
+
   it("lists files whose verification failed, with only formatting offered", async () => {
     await files({ "a.toy": "alpha   \n" });
     const corrupting = createToyAdapter({

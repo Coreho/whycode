@@ -158,7 +158,7 @@ describe("runAction", () => {
     await runAction(options);
     expect(github.createReview.mock.calls[0]?.[0].comments).toEqual([]);
     expect(github.createReview.mock.calls[0]?.[0].body).toContain(
-      "processing failed",
+      "not processed",
     );
     const adapter = createToyAdapter();
     options.provider = new FakeAIProvider([

@@ -173,7 +173,7 @@ describe("reviewing a file's changes", () => {
       "fn total items\n  return items\n",
     );
     expect(output()).toContain(
-      "Only formatting offered (the AI's comments failed the logic check) (1):",
+      "Comments discarded because verification failed; only formatting offered (1):",
     );
     expect(output()).toContain('expected "...", found "..."');
     expect(output()).not.toContain("leaked");

@@ -5,6 +5,8 @@
 export const version = "0.0.0";
 
 export { processFile } from "./pipeline.js";
+export { fileVerdict } from "./verdict.js";
+export type { FileVerdict, VerdictKind } from "./verdict.js";
 export type {
   FileInput,
   FileResult,

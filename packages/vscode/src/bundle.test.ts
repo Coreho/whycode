@@ -93,7 +93,7 @@ describe.skipIf(!built)("the built extension (run pnpm build first)", () => {
     );
     // A comment inside the template literal would change the string, and
     // the tree-sitter token check catches it.
-    expect(output).toMatch(/failed the logic check\) \(1\):\n {2}template\.ts/);
+    expect(output).toMatch(/only formatting offered \(1\):\n {2}template\.ts/);
     expect(await readFile(join(project, "template.ts"), "utf8")).toBe(
       "export const page = `\n<h1>Title</h1>\n`;\n",
     );

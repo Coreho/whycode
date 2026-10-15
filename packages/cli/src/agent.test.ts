@@ -124,7 +124,9 @@ describe("agent commands", () => {
   it("preview shows the diff, numbered suggestions and a fingerprint, and writes nothing", async () => {
     await files({ "a.toy": "# go\nstop\n" });
     await preview("a.toy");
-    expect(stdout).toContain("Preview of a.toy (verification: passed).");
+    expect(stdout).toContain(
+      "a.toy: 1 comment added; comment insertion preserved the checked code tokens; 1 suggested rewrite of existing comments to review",
+    );
     expect(stdout).toContain("+# Shut down.");
     expect(stdout).toContain("(1 of 1)");
     expect(stdout).toMatch(
@@ -262,8 +264,34 @@ describe("agent commands", () => {
     expect(
       await runCli(["preview", "a.toy", "--plan", "-"], io(), corrupting),
     ).toBe(0);
-    expect(stdout).toContain("verification: failed");
+    expect(stdout).toContain(
+      "a.toy: comments discarded because verification failed",
+    );
     expect(stdout).toMatch(/AI comments were discarded/);
+  });
+
+  it("explains a discarded result that leaves nothing to write", async () => {
+    // The file is already tidy and has no existing comments, so once the
+    // comments are discarded nothing is left to change.
+    await files({ "a.toy": "stop\n" });
+    const corrupting: CommandDeps = {
+      ...deps,
+      adapters: [
+        createToyAdapter({ corruptOnReformat: (code) => `${code}\nextra` }),
+      ],
+    };
+    stdin = commentPlanReply({
+      insertions: [{ line: 1, position: "above", text: "Halt." }],
+    });
+    expect(
+      await runCli(["preview", "a.toy", "--plan", "-"], io(), corrupting),
+    ).toBe(0);
+    expect(stdout).toContain(
+      "a.toy: comments discarded because verification failed; nothing else to change",
+    );
+    expect(stdout).toMatch(/AI comments were discarded/);
+    expect(stdout).toContain("Nothing to write for a.toy.");
+    expect(stdout).not.toContain("No changes");
   });
 
   it("rejects flags that don't belong to the command", async () => {

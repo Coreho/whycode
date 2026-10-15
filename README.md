@@ -87,11 +87,28 @@ its npm page.
 | `-h`, `--help`            | Usage                                     |
 | `-v`, `--version`         | Version                                   |
 
-**Exit codes:** `check` exits 0 when nothing would change and 1 when a file
-would change, so CI can use it as a gate. `fix` exits 0 when it finishes,
-whatever you chose. Both exit 2 on errors: bad usage, an invalid config, a
-missing API key, a path that doesn't exist, or a file that couldn't be
-processed or written.
+**Verdicts.** Every processed file gets a one-line verdict, worded the same in
+every front-end:
+
+| Verdict                                                               | Meaning                                                        |
+| --------------------------------------------------------------------- | -------------------------------------------------------------- |
+| nothing to change                                                     | The file is fine as it is                                      |
+| N comments added; comment insertion preserved the checked code tokens | Comments (and any formatting) passed verification              |
+| formatting only (no comments were needed)                             | Only the formatter changed the file                            |
+| comments discarded because verification failed                        | The AI's comments were thrown away; at most formatting remains |
+| N comments added without verification                                 | A comments-only language, which WhyCode can't verify           |
+| rewritten by the AI, so logic may change                              | Refactor mode                                                  |
+| not processed: _reason_                                               | The file failed, for example because the AI call did           |
+
+Suggested rewrites of existing comments are counted after the verdict, and
+notes (such as discarded comments or a missing formatter) are always shown,
+even when there is no diff.
+
+**Exit codes:** `check` exits 0 when every file is clean, and 1 when a file
+would change or had its comments discarded, so CI can use it as a gate.
+`fix` exits 0 when it finishes, whatever you chose. Both exit 2 on errors: bad
+usage, an invalid config, a missing API key, a path that doesn't exist, or a
+file that couldn't be processed or written.
 
 ### Claude Code plugin
 
