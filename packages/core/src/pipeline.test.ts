@@ -154,7 +154,7 @@ describe("processFile: AI failures", () => {
       commentPlanReply({
         insertions: [above(99, "Lost.")],
         existingCommentSuggestions: [
-          { line: 99, original: "#", suggested: "#", reason: "" },
+          { line: 99, original: "# old", suggested: "# new", reason: "" },
         ],
       }),
     );
@@ -300,6 +300,21 @@ describe("processFile: privacy", () => {
 });
 
 describe("processFile: other behavior", () => {
+  it("drops suggestions that are empty or change nothing", async () => {
+    // The empty entry reproduces one seen in a real run on nudl.
+    const { run } = setup(
+      commentPlanReply({
+        existingCommentSuggestions: [
+          { line: 2, original: "", suggested: "", reason: "none" },
+          { line: 1, original: "# same", suggested: " # same ", reason: "x" },
+          { line: 1, original: "# old", suggested: "", reason: "x" },
+        ],
+      }),
+    );
+    const result = await run({ path: "cart.toy", code: cartCode });
+    expect(result.commentSuggestions).toEqual([]);
+  });
+
   it("preserves CRLF line endings", async () => {
     const { run } = setup(
       commentPlanReply({ insertions: [above(1, "Adds up the items.")] }),

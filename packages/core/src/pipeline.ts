@@ -610,7 +610,10 @@ function insertComments(
 
 const identityLineMap = (line: number): number => line;
 
-/** Drops suggestions pointing past the end of the file and renumbers the rest. */
+/**
+ * Drops suggestions that change nothing or point past the end of the file,
+ * and renumbers the rest.
+ */
 function validSuggestions(
   suggestions: readonly ExistingCommentSuggestion[],
   code: string,
@@ -619,6 +622,12 @@ function validSuggestions(
 ): ExistingCommentSuggestion[] {
   const lineCount = countLines(code);
   return suggestions.flatMap((suggestion) => {
+    // Models sometimes return a placeholder entry with nothing in it.
+    const original = suggestion.original.trim();
+    const suggested = suggestion.suggested.trim();
+    if (original === "" || suggested === "" || original === suggested) {
+      return [];
+    }
     if (suggestion.line > lineCount) {
       warnings.push(
         `Dropped a comment suggestion for line ${suggestion.line}: the file is shorter.`,
