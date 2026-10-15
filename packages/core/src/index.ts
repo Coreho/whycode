@@ -57,6 +57,8 @@ export { buildCommentPrompt } from "./ai/prompts.js";
 export { findAdapterForPath } from "./languages/adapter.js";
 export type { LanguageAdapter } from "./languages/adapter.js";
 export { defaultAdapters } from "./languages/index.js";
+export { createGoAdapter, goAdapter } from "./languages/go.js";
+export type { GoAdapterOptions } from "./languages/go.js";
 export { createPythonAdapter, pythonAdapter } from "./languages/python.js";
 export type { PythonAdapterOptions } from "./languages/python.js";
 export {

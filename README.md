@@ -26,20 +26,31 @@ build plan.
   comments from Claude through the API, with tuned prompts per comment level.
 - **Trailing-comma fix (TASK-11): done.** Comments next to arguments that
   Ruff or Prettier splits over several lines are no longer thrown away.
+- **Phase 7a (Go adapter): built,** ahead of Phase 6 so it could be built in
+  parallel. One check is left: a run against a real gofmt, which isn't
+  installed on the development machine yet. C#, Java and Rust follow.
 - **Next: Phase 6,** the `whycode` CLI with interactive preview.
 
 ## Supported languages
 
-| Language   | Extensions                    | Formatter                                                           | Notes                                                                                      |
-| ---------- | ----------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Python     | `.py`, `.pyi`                 | [Ruff](https://docs.astral.sh/ruff/) (`ruff format`), found on PATH | Without Ruff, comments are still added and verified; formatting is skipped with a warning. |
-| TypeScript | `.ts`, `.mts`, `.cts`         | Prettier (bundled)                                                  |                                                                                            |
-| TSX        | `.tsx`                        | Prettier (bundled)                                                  |                                                                                            |
-| JavaScript | `.js`, `.mjs`, `.cjs`, `.jsx` | Prettier (bundled)                                                  | JSX is supported in `.js` files.                                                           |
+| Language   | Extensions                    | Formatter                                                           | Notes                                                                                       |
+| ---------- | ----------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Python     | `.py`, `.pyi`                 | [Ruff](https://docs.astral.sh/ruff/) (`ruff format`), found on PATH | Without Ruff, comments are still added and verified; formatting is skipped with a warning.  |
+| TypeScript | `.ts`, `.mts`, `.cts`         | Prettier (bundled)                                                  |                                                                                             |
+| TSX        | `.tsx`                        | Prettier (bundled)                                                  |                                                                                             |
+| JavaScript | `.js`, `.mjs`, `.cjs`, `.jsx` | Prettier (bundled)                                                  | JSX is supported in `.js` files.                                                            |
+| Go         | `.go`                         | `gofmt` (comes with Go), found on PATH                              | Without gofmt, comments are still added and verified; formatting is skipped with a warning. |
 
 Formatters use the project's own settings: Prettier reads `.prettierrc` and
 `.editorconfig`, Ruff reads `pyproject.toml` or `ruff.toml`, both found from the
-file's location.
+file's location. gofmt has no settings.
+
+**Go and cgo.** The comment block directly above `import "C"` is the cgo
+preamble: C code that cgo compiles. Its text counts as part of the token
+stream, so a comment inserted inside it, or next to it where it would join the
+block, is caught. A comment separated from it by a blank line is fine.
+Inserted comments always start with `// ` (with a space), so they can never
+become a `//go:` directive.
 
 Tokens come from [tree-sitter](https://tree-sitter.github.io/) grammars compiled
 to WebAssembly. They ship with the npm grammar packages, so nothing is downloaded
@@ -81,7 +92,8 @@ and returns a result. It never writes to disk.
 ### What verification guarantees
 
 `src/verification.test.ts` runs the real Python and TypeScript adapters over
-`fixtures/*/verification.*`, a file per language full of risky constructs:
+`fixtures/*/verification.*`, a file per language full of risky constructs (Go
+has its own, `src/languages/go.verification.test.ts`):
 
 | Risk                                                                 | What happens                                                           |
 | -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -169,8 +181,11 @@ Together they run the real pipeline in tests with no network.
 - pnpm 12 (`npm install -g pnpm`)
 - Optional: [Ruff](https://docs.astral.sh/ruff/) on PATH, to format Python
   (`pip install ruff`, or `winget install astral-sh.ruff` on Windows). Without
-  it, Python files still get comments and verification, and one Ruff test is
+  it, Python files still get comments and verification, and the Ruff tests are
   skipped.
+- Optional: [Go](https://go.dev/dl/) on PATH for `gofmt`, to format Go files
+  (`winget install GoLang.Go` on Windows). Without it, Go files still get
+  comments and verification, and one gofmt test is skipped.
 
 ## Development
 
@@ -219,10 +234,10 @@ packages/
       verify.ts          # token-stream comparison
       privacy.ts         # sensitive-file check and secret masking
       text.ts            # line-ending helpers
-      process.ts         # runs external formatters (ruff) with code on stdin
+      process.ts         # runs external formatters (ruff, gofmt) with code on stdin
       ai/                # providers (Anthropic, OpenRouter), schema, prompts
       comments/          # comment insertion
-      languages/         # adapters (python.ts, typescript.ts), shared
+      languages/         # adapters (python.ts, typescript.ts, go.ts), shared
                          # tree-sitter tokens, comment-only fallback
       testing/           # fake provider and toy adapter
     fixtures/            # messy AI-style sample code per language
