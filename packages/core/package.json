@@ -25,6 +25,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
     "diff": "^9.0.0",
+    "ignore": "^7.0.12",
+    "picomatch": "^4.0.7",
     "prettier": "^3.9.10",
     "tree-sitter-c-sharp": "^0.23.5",
     "tree-sitter-go": "^0.25.0",
@@ -35,5 +37,8 @@
     "tree-sitter-typescript": "^0.23.2",
     "web-tree-sitter": "^0.27.1",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/picomatch": "^4.0.3"
   }
 }

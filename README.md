@@ -11,8 +11,9 @@ Claude Code plugin, a VS Code extension, and a GitHub Action.
 
 ## Status
 
-Early development. Nothing user-facing exists yet. See `CLAUDE.md` for the full
-build plan.
+Early development. `whycode check` works from a source checkout (see
+[Using the CLI](#using-the-cli)); nothing is on npm yet. See `CLAUDE.md` for
+the full build plan.
 
 - **Phase 1 (scaffold): done.** pnpm monorepo, strict TypeScript, ESLint,
   Prettier, Vitest.
@@ -33,7 +34,10 @@ build plan.
   seven Tier 1 languages are now supported in the core.
 - **Refactor mode in the core (TASK-04): done.** The engine behind the CLI's
   `--refactor` flag.
-- **Next: Phase 6,** the `whycode` CLI with interactive preview.
+- **Phase 6a (`whycode check` and file collection): done.** The first
+  command you can run: a dry run that prints diffs and comment suggestions.
+- **Next: Phase 6b,** `whycode fix` with an interactive preview, then 6c
+  (publishing to npm).
 
 ## Supported languages
 
@@ -81,6 +85,58 @@ the code. Nor are they placed above a shebang (`#!`) on line 1, which only works
 there, or above an encoding declaration (`# -*- coding: latin-1 -*-`) on line 1
 or 2, which Python only reads there. Both are comments to tree-sitter, so
 verification alone wouldn't notice.
+
+## Using the CLI
+
+The CLI isn't published yet, so run it from a checkout after `pnpm build`:
+
+```sh
+export ANTHROPIC_API_KEY=sk-ant-...             # or OPENROUTER_API_KEY with --provider openrouter
+node packages/cli/dist/bin.js check src         # files and folders, any number
+node packages/cli/dist/bin.js check . --comment-level medium
+```
+
+`whycode check <paths...>` is a dry run. It prints a unified diff for each
+file that would change, suggested rewrites of existing comments, any notes
+(for example a missing formatter), the paths it skipped and why, and a
+summary. It never writes files. Up to four files are sent to the AI at once,
+and results are printed in path order.
+
+| Flag                      | Effect                                    |
+| ------------------------- | ----------------------------------------- |
+| `--comment-level <level>` | `light` (default), `medium` or `heavy`    |
+| `--provider <name>`       | `anthropic` (default) or `openrouter`     |
+| `--model <id>`            | Claude model, default `claude-sonnet-5-5` |
+| `-h`, `--help`            | Usage                                     |
+| `-v`, `--version`         | Version                                   |
+
+Flags override `.whycoderc.json`. `refactor` mode set in that file is ignored
+by `check`; refactor mode will only run when asked for with `--refactor`
+(Phase 6b).
+
+**Exit codes:** 0 when nothing would change, 1 when a file would change (so
+CI can use `check` as a gate), 2 on errors: bad usage, an invalid config, a
+missing API key, a path that doesn't exist, or a file the AI couldn't process.
+
+**Which files are read.** The project root is the git repository's top
+folder, or else the nearest folder with a `.whycoderc.json`. Within it:
+
+- Files and folders ignored by git are never read: every `.gitignore` from the
+  root down (deeper ones win) plus `.git/info/exclude`. A file inside an
+  ignored folder stays ignored, as in git. `.git` itself is never entered.
+- Files that may hold secrets (`.env*`, `*.pem`, `*.key`, SSH keys, `.npmrc`,
+  ...) are never read, even when named on the command line.
+- `include` and `exclude` globs from `.whycoderc.json` are matched against
+  root-relative paths. Folders an `exclude` glob ending in `/**` covers (like
+  the default `node_modules/**` and `dist/**`) aren't walked at all.
+- Folders contribute only files in languages WhyCode handles, so a README
+  isn't reported as skipped. A file you name directly is always reported.
+- Files over 1 MB, symbolic links, binary files and files that aren't UTF-8
+  are skipped.
+
+Skipped paths are listed by reason at the end of the output. File collection
+lives in the core (`collectFiles`), so the other front-ends will apply the
+same rules.
 
 ## How the core works
 
@@ -317,15 +373,24 @@ packages/
       test-runner.ts     # runs testCommand against a refactored file
       ai/                # providers (Anthropic, OpenRouter), schema, prompts
       comments/          # comment insertion
+      files/             # file collection (.gitignore, globs), project
+                         # root, reading source files
       languages/         # adapters (python.ts, typescript.ts, go.ts,
                          # rust.ts, csharp.ts, java.ts), shared tree-sitter
                          # tokens,
                          # comment-only fallback
       testing/           # fake provider and toy adapter
     fixtures/            # messy AI-style sample code per language
+  cli/                   # the `whycode` command: a thin wrapper over core
+    src/
+      bin.ts             # the executable
+      cli.ts             # argument dispatch, help, exit codes
+      args.ts            # flag parsing (node:util parseArgs)
+      check.ts           # `whycode check`
+      report.ts          # terminal output: diffs, suggestions, skips
 ```
 
-The CLI, Claude Code plugin, VS Code extension, and GitHub Action packages are
+The Claude Code plugin, VS Code extension, and GitHub Action packages are
 added in later phases.
 
 ## Toolchain notes

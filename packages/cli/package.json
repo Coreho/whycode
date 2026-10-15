@@ -1,0 +1,24 @@
+{
+  "name": "whycode",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cleans up AI-written code: formats it and adds comments that explain what it does and why.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "whycode": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@whycode/core": "workspace:*"
+  }
+}

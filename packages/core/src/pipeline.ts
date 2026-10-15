@@ -34,6 +34,8 @@ export interface FileInput {
   /** Path shown in diffs and used to pick the language; ideally repo-relative. */
   path: string;
   code: string;
+  /** Where the file is on disk, so formatters find the project's settings. Defaults to path. */
+  absolutePath?: string;
 }
 
 export interface PipelineDeps {
@@ -153,7 +155,7 @@ async function runFullMode(
   const base = { languageId: adapter.id, mode: "full" as const };
 
   // Step 2: format. A missing formatter is a warning, not a failure.
-  const formatting = await formatCode(adapter, job.code, job.input.path);
+  const formatting = await formatCode(adapter, job.code, job.input);
   if (!formatting.formatted) {
     warnings.push(
       `No formatter available for ${adapter.id}; formatting was skipped.`,
@@ -199,8 +201,7 @@ async function runFullMode(
   );
   let reformatted: string;
   try {
-    reformatted = (await formatCode(adapter, inserted.code, job.input.path))
-      .code;
+    reformatted = (await formatCode(adapter, inserted.code, job.input)).code;
   } catch (error) {
     return keepFormattingOnly(
       `the formatter rejected the code after they were inserted (${errorMessage(error)})`,
@@ -238,9 +239,9 @@ async function runFullMode(
 async function formatCode(
   adapter: LanguageAdapter,
   code: string,
-  filePath: string,
+  input: FileInput,
 ): Promise<{ code: string; formatted: boolean }> {
-  const result = await adapter.format(code, filePath);
+  const result = await adapter.format(code, input.absolutePath ?? input.path);
   return { code: toLf(result.code), formatted: result.formatted };
 }
 
@@ -293,7 +294,7 @@ async function runRefactorMode(
   const skip = (reason: string) => skippedResult(job.input, reason, base);
 
   // Step 2: format, so the AI and the diff start from clean code.
-  const formatting = await formatCode(adapter, job.code, job.input.path);
+  const formatting = await formatCode(adapter, job.code, job.input);
   if (!formatting.formatted) {
     warnings.push(
       `No formatter available for ${adapter.id}; formatting was skipped.`,
@@ -307,8 +308,7 @@ async function runRefactorMode(
   // parses it without errors.
   let rewritten: string;
   try {
-    rewritten = (await formatCode(adapter, toLf(plan.code), job.input.path))
-      .code;
+    rewritten = (await formatCode(adapter, toLf(plan.code), job.input)).code;
   } catch (error) {
     return skip(
       `the formatter rejected the rewritten code (${errorMessage(error)})`,

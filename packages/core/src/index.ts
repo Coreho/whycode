@@ -90,6 +90,18 @@ export {
 } from "./languages/typescript.js";
 export type { ProcessResult, ProcessRunner } from "./process.js";
 
+export { collectFiles } from "./files/collect.js";
+export type {
+  CollectedFile,
+  CollectOptions,
+  FileCollection,
+  SkipKind,
+  SkippedPath,
+} from "./files/collect.js";
+export { findProjectRoot } from "./files/project-root.js";
+export { readSourceFile } from "./files/source-file.js";
+export type { SourceRead } from "./files/source-file.js";
+
 export { createUnifiedDiff } from "./diff.js";
 export { compareTokenStreams, describeTokenMismatch } from "./verify.js";
 export type { TokenComparison } from "./verify.js";
