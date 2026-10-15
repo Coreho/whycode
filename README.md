@@ -11,10 +11,53 @@ Claude Code plugin, a VS Code extension, and a GitHub Action.
 
 ## Status
 
-Early development. **Phase 1 (scaffold) is done:** the pnpm monorepo, strict
-TypeScript, ESLint, Prettier, and Vitest are set up, with an empty
-`@whycode/core` package. Nothing user-facing exists yet. See `CLAUDE.md` for the
-full build plan.
+Early development. Nothing user-facing exists yet. See `CLAUDE.md` for the full
+build plan.
+
+- **Phase 1 (scaffold): done.** pnpm monorepo, strict TypeScript, ESLint,
+  Prettier, Vitest.
+- **Phase 2 (core skeleton): done.** The `@whycode/core` pipeline runs from start
+  to finish offline, using a fake AI provider and a toy test language.
+- **Next: Phase 3,** real Python and TypeScript adapters (tree-sitter tokens and
+  formatters).
+
+## How the core works
+
+`processFile({ path, code }, config, { provider, adapters })` handles one file
+and returns a result. It never writes to disk.
+
+1. **Privacy check:** files like `.env*`, `*.pem`, `*.key`, and SSH keys are
+   skipped and never sent to an AI.
+2. **Detect language** from the file extension:
+   - A language with an adapter gets the full pipeline.
+   - A known language without an adapter (Ruby, C, SQL, ...) gets comments only,
+     with no formatting and no verification, and the result is labeled that way.
+   - Anything else is skipped.
+3. **Format** with the language's formatter. If none is installed, WhyCode warns
+   and carries on.
+4. **Record the token stream**, ignoring comments.
+5. **Ask the AI for a comment plan.** Likely secrets are masked first. The AI
+   returns JSON listing comments to insert and suggestions for existing
+   comments; it never returns rewritten code. An invalid reply gets one retry,
+   then the file is skipped.
+6. **Insert comments** as new lines above their targets, then re-format.
+   Existing lines are never edited.
+7. **Verify:** the token stream must exactly match step 4. If it doesn't, the AI
+   changes are thrown away and only the formatting is kept.
+8. **Return** the new code (with the original line endings), a unified diff, the
+   suggestions for existing comments, and any warnings.
+
+Settings come from `.whycoderc.json` (strict JSON, no comments) at the repo root,
+overridden by command-line flags. Unknown keys are rejected so typos are caught.
+
+Refactor mode (`"mode": "refactor"`) is accepted by the config but not
+implemented yet. Files are skipped with a clear reason.
+
+### Testing helpers
+
+`@whycode/core/testing` exports `FakeAIProvider` (scripted replies, records
+every request) and `createToyAdapter` (a made-up `#`-comment language). Together
+they run the real pipeline in tests with no network and no formatters installed.
 
 ## Requirements
 
@@ -35,7 +78,18 @@ pnpm format      # rewrite files with Prettier
 
 ```
 packages/
-  core/          # the engine: all real logic, no UI
+  core/                  # the engine: all real logic, no UI
+    src/
+      pipeline.ts        # per-file pipeline (steps above)
+      config.ts          # .whycoderc.json + flag overrides
+      diff.ts            # unified diffs for previews
+      verify.ts          # token-stream comparison
+      privacy.ts         # sensitive-file check and secret masking
+      text.ts            # line-ending helpers
+      ai/                # provider interface, comment-plan schema, prompts
+      comments/          # comment insertion
+      languages/         # adapter interface and comment-only fallback
+      testing/           # fake provider and toy adapter
 ```
 
 The CLI, Claude Code plugin, VS Code extension, and GitHub Action packages are

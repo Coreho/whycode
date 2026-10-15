@@ -1,0 +1,6 @@
+// Test doubles for WhyCode, published as "@whycode/core/testing" so every
+// front-end can run the real pipeline offline in its own tests.
+export { commentPlanReply, FakeAIProvider } from "./fake-provider.js";
+export type { FakeResponse } from "./fake-provider.js";
+export { createToyAdapter, formatToyCode, toyTokens } from "./toy-adapter.js";
+export type { ToyAdapterOptions } from "./toy-adapter.js";
