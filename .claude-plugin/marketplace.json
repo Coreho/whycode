@@ -1,0 +1,12 @@
+{
+  "name": "whycode",
+  "description": "WhyCode: clean up AI-written code with comments that explain what and why.",
+  "owner": { "name": "Coreho" },
+  "plugins": [
+    {
+      "name": "whycode",
+      "source": "./packages/claude-code-plugin",
+      "description": "A /cleanup skill that formats code and adds what/why comments with Claude Code's own model, showing every diff before writing."
+    }
+  ]
+}

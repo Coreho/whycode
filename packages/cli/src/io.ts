@@ -16,6 +16,8 @@ export interface CliIo {
   interactive: boolean;
   /** Asks a question; undefined means input ended or the user pressed Ctrl+C. */
   ask(question: string): Promise<string | undefined>;
+  /** All of standard input, e.g. a comment plan piped in by an agent. */
+  readStdin(): Promise<string>;
 }
 
 export function processIo(): CliIo {
@@ -29,7 +31,16 @@ export function processIo(): CliIo {
     color: stdout.isTTY && stdout.hasColors(),
     interactive: stdin.isTTY && stdout.isTTY,
     ask: askOnTerminal,
+    readStdin: readAllStdin,
   };
+}
+
+async function readAllStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.from(chunk as Buffer));
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 async function askOnTerminal(question: string): Promise<string | undefined> {

@@ -42,8 +42,11 @@ the full build plan.
 - **Phase 6c (npm package): done.** `packages/cli` packs as `whycode` with
   the core bundled in and the grammars shipped inside, so installing it never
   compiles anything. Phase 6 is complete.
-- **Next: Phases 8 to 10,** the Claude Code plugin, the VS Code extension and
-  the GitHub Action, then the docs (Phase 11).
+- **Phase 8 (Claude Code plugin): done.** `/whycode:cleanup` cleans up code
+  with Claude Code's own model, no API key needed, through three new CLI
+  commands for agents (`prompt`, `preview`, `write`).
+- **In progress: Phases 9 and 10,** the VS Code extension and the GitHub
+  Action, built in parallel; then the docs (Phase 11).
 
 ## Supported languages
 
@@ -180,6 +183,40 @@ tarball (only `dist/`, `README.md` and `LICENSE`), installs it globally into
 a throwaway folder and runs `whycode --version` and `--help`. Publish with
 `pnpm publish` from `packages/cli`, which turns the `workspace:*` dev
 dependency into a version number.
+
+## Using the Claude Code plugin
+
+`packages/claude-code-plugin` adds a `/whycode:cleanup [paths] [--comment-level
+<level>]` skill to Claude Code (see its
+[README](packages/claude-code-plugin/README.md) to install it). Claude Code's
+own model writes the comments, so no API key is needed; the WhyCode CLI must be
+on your PATH.
+
+Claude Code's model can't be called through an API, so the CLI has three
+commands that let any agent act as WhyCode's AI:
+
+- `whycode prompt <paths...>` prints exactly what WhyCode would send to a
+  model: the system prompt, the reply schema and each file's numbered code
+  (`--list` prints only which files would be processed). File collection and
+  secret masking work as usual, and no provider is ever created.
+- `whycode preview <file> --plan <file|->` runs the file through the normal
+  pipeline with the agent's JSON reply as the AI's answer. That means the same
+  validation, insertion, formatting and logic-unchanged check. It prints the
+  diff, the numbered suggestions and a fingerprint, and writes nothing.
+- `whycode write <file> --plan <file|-> --fingerprint <fp>
+[--accept-suggestions 1,3]` recomputes the result and writes it only if the
+  fingerprint matches, so what is written is exactly what the person saw.
+
+The pipeline is deterministic up to the AI call, which is what makes this
+work: the core's `captureCommentRequest` stops at the AI call and returns the
+request, and `processWithReply` runs the file again with the reply.
+
+The skill tells Claude to show each diff, ask before writing, offer suggestions
+one at a time, and never read or edit the files itself. It pre-approves only
+`whycode --version`, `whycode prompt` and `whycode preview`, so Claude Code
+asks your permission before every `whycode write`. The repository root has a
+`.claude-plugin/marketplace.json`, so `/plugin marketplace add Coreho/whycode`
+finds it.
 
 ## How the core works
 
@@ -414,7 +451,8 @@ packages/
       text.ts            # line-ending helpers
       process.ts         # runs external formatters (ruff, gofmt, rustfmt)
       test-runner.ts     # runs testCommand against a refactored file
-      ai/                # providers (Anthropic, OpenRouter), schema, prompts
+      ai/                # providers (Anthropic, OpenRouter), schema, prompts,
+                         # external-model.ts (an agent's model as the AI)
       comments/          # comment insertion, applying accepted suggestions
       files/             # file collection (.gitignore, globs), project
                          # root, reading source files
@@ -435,11 +473,16 @@ packages/
       run.ts             # steps shared by check and fix
       check.ts           # `whycode check`
       fix.ts             # `whycode fix`: review, write, suggestions
+      agent.ts           # `prompt`, `preview`, `write` for AI agents
       report.ts          # terminal output: diffs, suggestions, skips
+  claude-code-plugin/    # Claude Code plugin: no code, drives the CLI
+    .claude-plugin/plugin.json
+    skills/cleanup/SKILL.md
+.claude-plugin/
+  marketplace.json       # lets Claude Code install the plugin from this repo
 ```
 
-The Claude Code plugin, VS Code extension, and GitHub Action packages are
-added in later phases.
+The VS Code extension and GitHub Action packages are being added.
 
 ## Toolchain notes
 

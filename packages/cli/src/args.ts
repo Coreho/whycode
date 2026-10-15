@@ -8,6 +8,20 @@ export type ParsedArgs =
   | { kind: "version" }
   | { kind: "check"; paths: string[]; overrides: ConfigOverrides }
   | { kind: "fix"; paths: string[]; overrides: ConfigOverrides; yes: boolean }
+  | {
+      kind: "prompt";
+      paths: string[];
+      overrides: ConfigOverrides;
+      list: boolean;
+    }
+  | { kind: "preview"; path: string; plan: string }
+  | {
+      kind: "write";
+      path: string;
+      plan: string;
+      fingerprint: string;
+      acceptSuggestions: number[];
+    }
   | { kind: "error"; message: string };
 
 const OPTIONS = {
@@ -16,13 +30,27 @@ const OPTIONS = {
   model: { type: "string" },
   refactor: { type: "boolean" },
   yes: { type: "boolean", short: "y" },
+  plan: { type: "string" },
+  fingerprint: { type: "string" },
+  "accept-suggestions": { type: "string" },
+  list: { type: "boolean" },
   help: { type: "boolean", short: "h" },
   version: { type: "boolean", short: "v" },
 } as const;
 
+type Flag = keyof typeof OPTIONS;
 type FlagValues = ReturnType<typeof parseFlags>["values"];
 
-const COMMANDS = ["check", "fix"] as const;
+/** The flags each command accepts, besides --help and --version. */
+const COMMAND_FLAGS = {
+  check: ["comment-level", "provider", "model"],
+  fix: ["comment-level", "provider", "model", "yes", "refactor"],
+  prompt: ["comment-level", "list"],
+  preview: ["plan"],
+  write: ["plan", "fingerprint", "accept-suggestions"],
+} as const satisfies Record<string, readonly Flag[]>;
+type Command = keyof typeof COMMAND_FLAGS;
+
 const COMMENT_LEVELS: readonly CommentLevel[] = ["light", "medium", "heavy"];
 const CLI_PROVIDERS = ["anthropic", "openrouter"] as const;
 
@@ -39,33 +67,99 @@ export function parseCommandLine(argv: readonly string[]): ParsedArgs {
 
   const [name, ...paths] = positionals;
   if (name === undefined) return usageError("Missing a command.");
-  const command = COMMANDS.find((known) => known === name);
+  const command = Object.keys(COMMAND_FLAGS).find((known) => known === name);
   if (command === undefined) return usageError(`Unknown command "${name}".`);
+  return parseCommand(command as Command, paths, values);
+}
+
+function parseCommand(
+  command: Command,
+  paths: string[],
+  values: FlagValues,
+): ParsedArgs {
+  const stray = unsupportedFlag(command, values);
+  if (stray !== undefined) {
+    return usageError(`--${stray} doesn't apply to "whycode ${command}".`);
+  }
   if (paths.length === 0) {
     return usageError(
       `"whycode ${command}" needs at least one file or directory, e.g. "whycode ${command} src" (or "." for the whole project).`,
     );
   }
+  if (command === "preview" || command === "write") {
+    return parseAgentStep(command, paths, values);
+  }
   const overrides = parseOverrides(values);
   if (typeof overrides === "string") return usageError(overrides);
+  if (command === "check") return { kind: "check", paths, overrides };
+  if (command === "prompt") {
+    return { kind: "prompt", paths, overrides, list: values.list === true };
+  }
 
   const yes = values.yes === true;
-  const refactor = values.refactor === true;
-  if (command === "check") {
-    if (yes || refactor) {
-      return usageError(
-        `${yes ? "--yes" : "--refactor"} only applies to "whycode fix".`,
-      );
-    }
-    return { kind: "check", paths, overrides };
-  }
-  if (yes && refactor) {
+  if (yes && values.refactor === true) {
     return usageError(
       "--yes can't be combined with --refactor: every rewritten file needs your review.",
     );
   }
-  if (refactor) overrides.mode = "refactor";
+  if (values.refactor === true) overrides.mode = "refactor";
   return { kind: "fix", paths, overrides, yes };
+}
+
+/** `preview` and `write` handle one file and need the external model's plan. */
+function parseAgentStep(
+  command: "preview" | "write",
+  paths: string[],
+  values: FlagValues,
+): ParsedArgs {
+  const [path] = paths;
+  if (path === undefined || paths.length > 1) {
+    return usageError(`"whycode ${command}" takes exactly one file.`);
+  }
+  const plan = values.plan;
+  if (plan === undefined) {
+    return usageError(
+      `"whycode ${command}" needs --plan <file> (or - for stdin).`,
+    );
+  }
+  if (command === "preview") return { kind: "preview", path, plan };
+
+  const fingerprint = values.fingerprint;
+  if (fingerprint === undefined) {
+    return usageError(
+      `"whycode write" needs the --fingerprint that "whycode preview" printed.`,
+    );
+  }
+  const acceptSuggestions = parseNumberList(values["accept-suggestions"] ?? "");
+  if (acceptSuggestions === undefined) {
+    return usageError(
+      "--accept-suggestions takes suggestion numbers separated by commas, e.g. 1,3.",
+    );
+  }
+  return { kind: "write", path, plan, fingerprint, acceptSuggestions };
+}
+
+function unsupportedFlag(
+  command: Command,
+  values: FlagValues,
+): Flag | undefined {
+  const allowed: readonly Flag[] = [
+    ...COMMAND_FLAGS[command],
+    "help",
+    "version",
+  ];
+  const given = Object.keys(values).filter(
+    (flag): flag is Flag => flag in OPTIONS,
+  );
+  return given.find((flag) => !allowed.includes(flag));
+}
+
+/** "1,3" -> [1, 3]; undefined unless every item is a positive whole number. */
+function parseNumberList(text: string): number[] | undefined {
+  if (text.trim() === "") return [];
+  const items = text.split(",").map((item) => item.trim());
+  if (!items.every((item) => /^[1-9]\d*$/.test(item))) return undefined;
+  return items.map(Number);
 }
 
 function parseFlags(argv: readonly string[]) {

@@ -57,8 +57,11 @@ describe("parseCommandLine", () => {
       /only works inside Claude Code or VS Code/,
     ],
     [["check", ".", "--model", " "], /needs a model name/],
-    [["check", ".", "--yes"], /--yes only applies to "whycode fix"/],
-    [["check", ".", "--refactor"], /--refactor only applies/],
+    [["check", ".", "--yes"], /--yes doesn.t apply to "whycode check"/],
+    [
+      ["check", ".", "--refactor"],
+      /--refactor doesn.t apply to "whycode check"/,
+    ],
     [["fix", ".", "--yes", "--refactor"], /can.t be combined with --refactor/],
     [["fix", ".", "--bogus"], /Unknown option .--bogus./],
   ])("rejects %j", (argv, message) => {

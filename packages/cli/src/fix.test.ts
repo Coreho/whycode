@@ -55,6 +55,7 @@ describe("whycode fix", () => {
       stderr: (text) => void (stderr += text),
       color: false,
       interactive: options.interactive ?? true,
+      readStdin: () => Promise.resolve(""),
       ask: async (question) => {
         questions.push(question);
         await options.onAsk?.();

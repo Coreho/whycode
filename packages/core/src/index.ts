@@ -40,6 +40,12 @@ export {
 } from "./ai/openrouter.js";
 export type { OpenRouterProviderOptions } from "./ai/openrouter.js";
 export { createConfiguredProvider } from "./ai/providers.js";
+export {
+  captureCommentRequest,
+  processWithReply,
+  resultFingerprint,
+} from "./ai/external-model.js";
+export type { CapturedRequest } from "./ai/external-model.js";
 export type { ConfiguredProviderOptions } from "./ai/providers.js";
 export {
   commentPlanJsonSchema,

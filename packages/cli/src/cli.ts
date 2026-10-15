@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { createConfiguredProvider, defaultAdapters } from "@whycode/core";
 import { parseCommandLine } from "./args.js";
+import { runPreview, runPrompt, runWrite } from "./agent.js";
 import { runCheck } from "./check.js";
 import { runFix } from "./fix.js";
 import type { CliIo } from "./io.js";
@@ -26,6 +27,17 @@ Usage:
                               and 2 on errors (bad usage, or a file that failed).
   whycode fix <paths...>      Show each file's diff and ask whether to apply it, then offer
                               suggested rewrites of existing comments one at a time.
+
+For AI agents whose own model writes the comments (used by the Claude Code plugin):
+  whycode prompt <paths...>   Print the requests WhyCode would send to an AI (system prompt,
+                              reply schema, each file's numbered code). Never needs a key.
+                              --list prints only which files would be processed.
+  whycode preview <file> --plan <file|->
+                              Run the file through WhyCode with the agent's JSON reply and
+                              print the diff, suggestions and a fingerprint. Writes nothing.
+  whycode write <file> --plan <file|-> --fingerprint <fp> [--accept-suggestions 1,3]
+                              Write exactly what the preview with that fingerprint showed,
+                              plus the accepted suggestions.
 
 Paths can be files or directories. Files ignored by .gitignore and files
 that may hold secrets (.env, *.pem, *.key, ...) are never read.
@@ -66,6 +78,12 @@ export async function runCli(
         return await runCheck(args.paths, args.overrides, io, deps);
       case "fix":
         return await runFix(args.paths, args, io, deps);
+      case "prompt":
+        return await runPrompt(args, io, deps);
+      case "preview":
+        return await runPreview(args.path, args.plan, io, deps);
+      case "write":
+        return await runWrite(args, io, deps);
     }
   } catch (error) {
     // Config errors, a missing API key and the like: the message says what to fix.

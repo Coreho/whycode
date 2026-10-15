@@ -48,6 +48,7 @@ describe("whycode check", () => {
     stderr: (text) => void (stderr += text),
     color: false,
     interactive: false,
+    readStdin: () => Promise.resolve(""),
     ask: () => Promise.resolve(undefined),
   });
 
@@ -305,6 +306,7 @@ describe("whycode", () => {
     stderr: (text) => void (stderr += text),
     color: false,
     interactive: false,
+    readStdin: () => Promise.resolve(""),
     ask: () => Promise.resolve(undefined),
   };
 

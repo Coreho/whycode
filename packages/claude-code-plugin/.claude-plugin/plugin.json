@@ -1,0 +1,8 @@
+{
+  "name": "whycode",
+  "version": "0.1.0",
+  "description": "Clean up AI-written code with Claude Code's own model: format it and add comments that explain what it does and why, without changing its logic. Every file's diff is shown before anything is written.",
+  "author": { "name": "Coreho" },
+  "license": "MIT",
+  "keywords": ["comments", "formatting", "code-quality", "documentation"]
+}

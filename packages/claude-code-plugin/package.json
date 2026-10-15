@@ -1,0 +1,11 @@
+{
+  "name": "@whycode/claude-code-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WhyCode for Claude Code: a /cleanup skill that uses Claude Code's own model through the whycode CLI.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
