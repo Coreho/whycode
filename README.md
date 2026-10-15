@@ -1,6 +1,6 @@
 # WhyCode
 
-_Last updated: 2026-10-14_
+_Last updated: 2026-10-15_
 
 WhyCode cleans up AI-written code so humans can understand it. It fixes
 formatting and adds comments that explain **what** the code does and **why**,
@@ -73,6 +73,22 @@ pnpm test        # run all tests with Vitest
 pnpm lint        # ESLint + Prettier check + type check (including tests)
 pnpm format      # rewrite files with Prettier
 ```
+
+### Task tracking
+
+Tasks are tracked with [Backlog.md](https://github.com/MrLesk/Backlog.md) as
+Markdown files in `backlog/` (install the CLI with `npm install -g backlog.md`).
+
+```sh
+backlog board            # Kanban board in the terminal
+backlog browser          # web UI on http://localhost:6420
+backlog task create "Title" -d "Description"
+backlog task list --plain
+```
+
+Use the `backlog` CLI rather than editing task files by hand. `CLAUDE.md` and
+`AGENTS.md` tell AI agents to do the same. Prettier skips `backlog/` and
+`AGENTS.md` because the CLI writes them.
 
 ## Repository layout
 

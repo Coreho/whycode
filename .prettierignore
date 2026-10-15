@@ -2,3 +2,6 @@ dist
 coverage
 pnpm-lock.yaml
 CLAUDE.md
+AGENTS.md
+# Written by the Backlog.md CLI, not by hand.
+backlog
