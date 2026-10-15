@@ -26,9 +26,8 @@ build plan.
   comments from Claude through the API, with tuned prompts per comment level.
 - **Trailing-comma fix (TASK-11): done.** Comments next to arguments that
   Ruff or Prettier splits over several lines are no longer thrown away.
-- **Phase 7a (Go adapter): built,** ahead of Phase 6 so it could be built in
-  parallel. One check is left: a run against a real gofmt, which isn't
-  installed on the development machine yet.
+- **Phase 7a (Go adapter): done,** ahead of Phase 6 so it could be built in
+  parallel.
 - **Phase 7b (Rust adapter): done,** also ahead of Phase 6. C# and Java
   follow.
 - **Next: Phase 6,** the `whycode` CLI with interactive preview.
