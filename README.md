@@ -69,7 +69,10 @@ native bindings (`allowBuilds` in `pnpm-workspace.yaml`).
 
 Comments are never placed directly after a line ending in a backslash. That
 backslash continues the line, so in Python, for example, the comment would break
-the code.
+the code. Nor are they placed above a shebang (`#!`) on line 1, which only works
+there, or above an encoding declaration (`# -*- coding: latin-1 -*-`) on line 1
+or 2, which Python only reads there. Both are comments to tree-sitter, so
+verification alone wouldn't notice.
 
 ## How the core works
 
@@ -113,6 +116,7 @@ and Rust have their own, `src/languages/go.verification.test.ts` and
 | Comment lands inside a multi-line string or template literal         | Caught: the string's contents changed, so the AI changes are discarded |
 | Comment lands in JSX text                                            | Caught the same way                                                    |
 | Comment after a backslash line continuation                          | Refused before insertion, with a warning                               |
+| Comment above a line-1 shebang or a line-1/2 encoding declaration    | Refused before insertion, with a warning                               |
 | Comment text containing newlines, `*/`, or code                      | Neutralized: every line becomes its own comment line                   |
 | Comment between JSX attributes or inside a JSX expression            | Kept: it's valid code and the tokens don't change                      |
 | A logic change slipping in (operator, identifier, removed statement) | Caught, and the warning names the first differing token                |

@@ -89,6 +89,56 @@ describe("applyInsertions", () => {
     ]);
   });
 
+  it("keeps a shebang on the first line", () => {
+    const code = "#!/usr/bin/env python3\nprint(1)\n";
+    const result = applyInsertions(
+      code,
+      [above(1, "Bad."), above(2, "Good.")],
+      "#",
+    );
+    expect(result.code).toBe("#!/usr/bin/env python3\n# Good.\nprint(1)\n");
+    expect(result.warnings).toEqual([
+      "Dropped a comment for line 1: line 1 is a shebang (#!), which must stay the first line.",
+    ]);
+  });
+
+  it("allows a comment above a Rust #![...] attribute, which isn't a shebang", () => {
+    const result = applyInsertions(
+      "#![allow(dead_code)]\n",
+      [above(1, "Ok.")],
+      "//",
+    );
+    expect(result.code).toBe("// Ok.\n#![allow(dead_code)]\n");
+  });
+
+  it("keeps an encoding declaration on line 1 within the first two lines", () => {
+    const code = "# -*- coding: latin-1 -*-\nx = 1\n";
+    const result = applyInsertions(
+      code,
+      [above(1, "Bad."), above(2, "Good.")],
+      "#",
+    );
+    expect(result.code).toBe("# -*- coding: latin-1 -*-\n# Good.\nx = 1\n");
+    expect(result.warnings).toEqual([
+      "Dropped a comment for line 1: line 1 declares the file's encoding, which must stay within the first two lines.",
+    ]);
+  });
+
+  it("keeps an encoding declaration on line 2, below a shebang, in place", () => {
+    const code =
+      "#!/usr/bin/env python3\n# vim: set fileencoding=utf-8 :\nx = 1\n";
+    const result = applyInsertions(
+      code,
+      [above(1, "Bad."), above(2, "Bad."), above(3, "Good.")],
+      "#",
+    );
+    expect(result.code).toBe(
+      "#!/usr/bin/env python3\n# vim: set fileencoding=utf-8 :\n# Good.\nx = 1\n",
+    );
+    expect(result.warnings).toHaveLength(2);
+    expect(result.warnings[1]).toMatch(/line 2 declares the file's encoding/);
+  });
+
   it("never changes existing lines", () => {
     const code = "  first\nsecond  \n\tthird";
     const result = applyInsertions(

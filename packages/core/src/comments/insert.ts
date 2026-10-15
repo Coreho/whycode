@@ -58,7 +58,24 @@ function placementProblem(
   if (lines[line - 2]?.endsWith("\\")) {
     return "the line before it ends with a backslash line continuation";
   }
+  // A shebang only works on line 1. Rust's #![...] attributes aren't shebangs.
+  if (line === 1 && isShebang(lines[0])) {
+    return "line 1 is a shebang (#!), which must stay the first line";
+  }
+  // Python only reads an encoding declaration on line 1 or 2.
+  const encodingLine =
+    lines.slice(0, 2).findIndex((text) => ENCODING_DECLARATION.test(text)) + 1;
+  if (encodingLine > 0 && line <= encodingLine) {
+    return `line ${encodingLine} declares the file's encoding, which must stay within the first two lines`;
+  }
   return undefined;
+}
+
+// PEP 263's pattern, e.g. "# -*- coding: latin-1 -*-".
+const ENCODING_DECLARATION = /^[ \t\f]*#.*?coding[:=][ \t]*[-\w.]+/;
+
+function isShebang(line: string | undefined): boolean {
+  return line !== undefined && line.startsWith("#!") && !line.startsWith("#![");
 }
 
 /** Comment lines to insert above each target line, in the AI's order. */
