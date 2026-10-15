@@ -8,3 +8,6 @@ backlog
 # Deliberately messy sample code that WhyCode is tested against.
 packages/core/fixtures
 validation/runs
+
+# Planning notes written outside the codebase; kept as their authors wrote them.
+Improvements/
