@@ -35,10 +35,14 @@ async function runFixture(
 ) {
   const code = await readFile(join(FIXTURES_DIR, relativePath), "utf8");
   const provider = new FakeAIProvider(reply);
-  return processFile({ path: relativePath, code }, resolveConfig(), {
-    provider,
-    adapters,
-  });
+  return processFile(
+    { path: relativePath, code },
+    resolveConfig({ format: "always" }),
+    {
+      provider,
+      adapters,
+    },
+  );
 }
 
 // Ruff joins backslash-continued lines, so this Python adapter skips

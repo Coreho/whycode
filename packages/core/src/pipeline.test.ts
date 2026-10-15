@@ -299,6 +299,50 @@ describe("processFile: privacy", () => {
   });
 });
 
+describe("processFile: when to format", () => {
+  // The toy language with a formatter the project may or may not have adopted.
+  const toyWithFormatter = (adopted: boolean): LanguageAdapter => ({
+    ...createToyAdapter(),
+    formatter: { name: "Toyfmt", isAdopted: () => Promise.resolve(adopted) },
+  });
+  const messy = { path: "cart.toy", code: "start   \nstop\n" };
+  const reply = commentPlanReply({ insertions: [above(2, "Shut down.")] });
+
+  async function runWith(adopted: boolean, format?: "always" | "never") {
+    const provider = new FakeAIProvider(reply);
+    const adapters = [toyWithFormatter(adopted)];
+    return processFile(messy, resolveConfig(format ? { format } : {}), {
+      provider,
+      adapters,
+    });
+  }
+
+  it("formats with a formatter the project has adopted", async () => {
+    const result = await runWith(true);
+    expect(result.outputCode).toBe("start\n# Shut down.\nstop\n");
+    expect(result.formatted).toBe(true);
+  });
+
+  it("leaves the style alone when the project hasn't adopted the formatter, and says so", async () => {
+    const result = await runWith(false);
+    expect(result.outputCode).toBe("start   \n# Shut down.\nstop\n");
+    expect(result.formatted).toBe(false);
+    expect(result.verification).toBe("passed");
+    expect(result.warnings).toContain(
+      "Formatting was skipped: this project isn't set up for Toyfmt, so its default style wasn't imposed. Use --format to format anyway.",
+    );
+  });
+
+  it("formats anyway with format: always, and never with format: never", async () => {
+    expect((await runWith(false, "always")).outputCode).toBe(
+      "start\n# Shut down.\nstop\n",
+    );
+    const never = await runWith(true, "never");
+    expect(never.outputCode).toBe("start   \n# Shut down.\nstop\n");
+    expect(never.warnings).toContain("Formatting was skipped, as configured.");
+  });
+});
+
 describe("processFile: other behavior", () => {
   it("drops suggestions that are empty or change nothing", async () => {
     // The empty entry reproduces one seen in a real run on nudl.

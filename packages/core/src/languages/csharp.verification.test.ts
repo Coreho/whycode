@@ -32,10 +32,14 @@ async function runCode(
   adapter = unformattedCSharp,
   name = "verification.cs",
 ) {
-  return processFile({ path: join(FIXTURES, name), code }, resolveConfig(), {
-    provider: new FakeAIProvider(reply),
-    adapters: [adapter],
-  });
+  return processFile(
+    { path: join(FIXTURES, name), code },
+    resolveConfig({ format: "always" }),
+    {
+      provider: new FakeAIProvider(reply),
+      adapters: [adapter],
+    },
+  );
 }
 
 async function runFixture(

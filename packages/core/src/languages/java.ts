@@ -4,6 +4,7 @@ import { Parser } from "web-tree-sitter";
 import type { ProcessRunner } from "../process.js";
 import { runProcess } from "../process.js";
 import type { LanguageAdapter } from "./adapter.js";
+import { googleJavaFormatAdopted } from "./formatter-adoption.js";
 import type { GrammarSpec, TokenRules } from "./tree-sitter.js";
 import { loadGrammar, treeSitterTokens } from "./tree-sitter.js";
 
@@ -30,6 +31,10 @@ export function createJavaAdapter(
     extensions: [".java"],
     lineComment: "//",
     format: (code) => formatWithGoogleJavaFormat(code, run),
+    formatter: {
+      name: "google-java-format",
+      isAdopted: googleJavaFormatAdopted,
+    },
     tokens: javaTokens,
   };
 }

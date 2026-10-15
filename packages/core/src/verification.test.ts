@@ -42,10 +42,14 @@ async function run(
   adapters: readonly LanguageAdapter[] = defaultAdapters,
 ): Promise<FileResult> {
   const code = await readFile(join(FIXTURES_DIR, fixture.path), "utf8");
-  return processFile({ path: fixture.path, code }, resolveConfig(), {
-    provider: new FakeAIProvider(reply),
-    adapters,
-  });
+  return processFile(
+    { path: fixture.path, code },
+    resolveConfig({ format: "always" }),
+    {
+      provider: new FakeAIProvider(reply),
+      adapters,
+    },
+  );
 }
 
 /** The fixture as the formatter leaves it, with no AI comments at all. */
@@ -235,7 +239,7 @@ describe("trailing commas a formatter adds when it splits a list are not logic c
     ].join("\n");
     const result = await processFile(
       { path: "split.ts", code },
-      resolveConfig(),
+      resolveConfig({ format: "always" }),
       {
         provider: new FakeAIProvider(
           commentAboveFirstMatch(/^export const totals/, PROBE),

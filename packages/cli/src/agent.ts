@@ -128,13 +128,20 @@ function renderPathList(title: string, entries: readonly Skip[]): string {
   return [`===== ${title} =====`, ...lines].join("\n");
 }
 
+/** One file and the agent's plan for it, as preview and write receive them. */
+export interface AgentStep {
+  path: string;
+  plan: string;
+  /** Only the format setting, which must match the prompt's. */
+  overrides: ConfigOverrides;
+}
+
 export async function runPreview(
-  path: string,
-  planSource: string,
+  step: AgentStep,
   io: CliIo,
   deps: CommandDeps,
 ): Promise<number> {
-  const outcome = await processWithPlan(path, planSource, io, deps);
+  const outcome = await processWithPlan(step, io, deps);
   if (outcome === undefined) return EXIT_CODES.error;
   const { result } = outcome;
   const paint = painter(io.color);
@@ -176,9 +183,7 @@ function renderAgentPreview(
     .concat("\n");
 }
 
-export interface WriteRequest {
-  path: string;
-  plan: string;
+export interface WriteRequest extends AgentStep {
   fingerprint: string;
   acceptSuggestions: readonly number[];
 }
@@ -188,7 +193,7 @@ export async function runWrite(
   io: CliIo,
   deps: CommandDeps,
 ): Promise<number> {
-  const outcome = await processWithPlan(request.path, request.plan, io, deps);
+  const outcome = await processWithPlan(request, io, deps);
   if (outcome === undefined) return EXIT_CODES.error;
   const { result, file } = outcome;
   if (resultFingerprint(result) !== request.fingerprint) {
@@ -240,12 +245,11 @@ export async function runWrite(
 
 /** Collects the one file (privacy rules apply), reads the plan and runs the pipeline. */
 async function processWithPlan(
-  path: string,
-  planSource: string,
+  { path, plan: planSource, overrides }: AgentStep,
   io: CliIo,
   deps: CommandDeps,
 ): Promise<{ result: FileResult; file: CollectedFile } | undefined> {
-  const run = await prepareRun([path], SAFE, io, deps);
+  const run = await prepareRun([path], { ...overrides, ...SAFE }, io, deps);
   if (run === undefined) return undefined;
   const [file] = run.files;
   if (file === undefined) {

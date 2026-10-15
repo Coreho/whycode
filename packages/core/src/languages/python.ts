@@ -3,6 +3,7 @@
 import type { ProcessRunner } from "../process.js";
 import { runProcess } from "../process.js";
 import type { LanguageAdapter } from "./adapter.js";
+import { ruffAdopted } from "./formatter-adoption.js";
 import type { GrammarSpec, TokenRules } from "./tree-sitter.js";
 import { treeSitterTokens } from "./tree-sitter.js";
 
@@ -51,6 +52,7 @@ export function createPythonAdapter(
     extensions: [".py", ".pyi"],
     lineComment: "#",
     format: (code, filePath) => formatWithRuff(code, filePath, run),
+    formatter: { name: "Ruff", isAdopted: ruffAdopted },
     tokens: (code) =>
       treeSitterTokens(code, PYTHON_GRAMMAR, PYTHON_TOKEN_RULES),
   };

@@ -79,17 +79,19 @@ its npm page.
     and your `testCommand` result with each diff, and can't be combined with
     `--yes`.
 
-| Flag                      | Effect                                           |
-| ------------------------- | ------------------------------------------------ |
-| `--comment-level <level>` | `light` (default), `medium` or `heavy`           |
-| `--provider <name>`       | `anthropic` (default) or `openrouter`            |
-| `--model <id>`            | Claude model, default `claude-sonnet-5-5`        |
-| `--staged`                | Only files staged in git                         |
-| `--diff <ref>`            | Only files changed since the branch left `<ref>` |
-| `-y`, `--yes`             | `fix` only: accept every file's changes          |
-| `--refactor`              | `fix` only: let the AI rewrite the code          |
-| `-h`, `--help`            | Usage                                            |
-| `-v`, `--version`         | Version                                          |
+| Flag                      | Effect                                                  |
+| ------------------------- | ------------------------------------------------------- |
+| `--comment-level <level>` | `light` (default), `medium` or `heavy`                  |
+| `--provider <name>`       | `anthropic` (default) or `openrouter`                   |
+| `--model <id>`            | Claude model, default `claude-sonnet-5-5`               |
+| `--staged`                | Only files staged in git                                |
+| `--diff <ref>`            | Only files changed since the branch left `<ref>`        |
+| `--format`                | Format even if the project hasn't adopted the formatter |
+| `--no-format`             | Never format; only add comments                         |
+| `-y`, `--yes`             | `fix` only: accept every file's changes                 |
+| `--refactor`              | `fix` only: let the AI rewrite the code                 |
+| `-h`, `--help`            | Usage                                                   |
+| `-v`, `--version`         | Version                                                 |
 
 **Verdicts.** Every processed file gets a one-line verdict, worded the same in
 every front-end:
@@ -231,7 +233,8 @@ flags or editor settings override it.
   "exclude": ["**/*.test.*", "dist/**"],
   "provider": "anthropic",
   "model": "claude-sonnet-5-5",
-  "testCommand": null
+  "testCommand": null,
+  "format": "auto"
 }
 ```
 
@@ -244,6 +247,7 @@ flags or editor settings override it.
 | `provider`     | `"anthropic"`                    | `"anthropic"` (`ANTHROPIC_API_KEY`) or `"openrouter"` (`OPENROUTER_API_KEY`)              |
 | `model`        | `"claude-sonnet-5-5"`            | Claude model ID                                                                           |
 | `testCommand`  | `null`                           | Shell command run against each rewritten file in `fix --refactor`                         |
+| `format`       | `"auto"`                         | `"auto"`: format only with a formatter the project has adopted; `"always"` or `"never"`   |
 
 Keys come only from environment variables; there is no setting for one. The
 plugin, the extension and the action always run safe mode, and the action
@@ -322,6 +326,25 @@ Ruby, shell, Perl, R, C, C++, PHP, Kotlin, Swift, Scala, Dart, SQL, Lua and
 Haskell get **comments only**: no formatting and no logic check, and every
 result says so. Suggestions for their existing comments are limited to whole
 comment lines.
+
+**WhyCode only formats with a formatter your project uses.** Formatting style
+is the project's choice, so by default a file is formatted only when its
+project has adopted that language's formatter:
+
+| Formatter          | Counts as adopted when the file's folder or one above it has                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Prettier           | a Prettier config (`.prettierrc*`, `prettier.config.*`, a `"prettier"` key in `package.json`) or Prettier as a dependency |
+| Ruff               | `ruff.toml`, `.ruff.toml`, or `[tool.ruff]` or `[tool.black]` in `pyproject.toml` (Ruff's style is Black's)               |
+| CSharpier          | `.csharpierrc*`, CSharpier in `.config/dotnet-tools.json`, `Directory.Build.props` or a `.csproj`                         |
+| google-java-format | google-java-format in `build.gradle`, `build.gradle.kts` or `pom.xml` (for example through Spotless)                      |
+| gofmt, rustfmt     | always: they are the languages' standard                                                                                  |
+
+Otherwise WhyCode adds comments without reformatting the file (still verified)
+and says so, instead of burying a few comments under hundreds of lines of
+reformatting. `--format` (or `"format": "always"`) formats anyway, and
+`--no-format` (`"never"`) never formats. The agent commands take the same
+flags, and `prompt`, `preview` and `write` must agree, because formatting
+moves the line numbers a plan refers to.
 
 Formatters use the project's own settings: Prettier reads `.prettierrc` and
 `.editorconfig`, Ruff reads `pyproject.toml` or `ruff.toml`, rustfmt reads

@@ -51,6 +51,10 @@ Options:
   --diff <ref>                check/fix: only files changed since the branch left <ref>
                               (committed, uncommitted and new), e.g. --diff origin/main.
                               With either, paths are optional and narrow the changes.
+  --format                    Format even if the project hasn't adopted the language's
+                              formatter (by default WhyCode only uses a formatter the
+                              project has set up). Pass the same to prompt, preview, write.
+  --no-format                 Never format; only add comments.
   -y, --yes                   fix: apply every file's changes without asking. Existing
                               comments are still never edited. Not allowed with --refactor.
   --refactor                  fix: let the AI rewrite the code. Logic WILL change; asks
@@ -85,7 +89,7 @@ export async function runCli(
       case "prompt":
         return await runPrompt(args, io, deps);
       case "preview":
-        return await runPreview(args.path, args.plan, io, deps);
+        return await runPreview(args, io, deps);
       case "write":
         return await runWrite(args, io, deps);
     }

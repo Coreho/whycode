@@ -58,6 +58,8 @@ describe.skipIf(!built)("the built extension (run pnpm build first)", () => {
     work = await mkdtemp(join(tmpdir(), "whycode-bundle-"));
     project = join(work, "project");
     await mkdir(join(project, ".git"), { recursive: true });
+    // The project uses Prettier, so WhyCode formats its TypeScript files.
+    await writeFile(join(project, ".prettierrc"), "{}\n");
     await writeFile(
       join(project, "app.ts"),
       "export function add(a:number,b:number){return a+b}\n",

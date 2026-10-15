@@ -12,8 +12,9 @@ import type { TestRunner, TestRunRequest } from "./test-runner.js";
 import { FakeAIProvider } from "./testing/fake-provider.js";
 import type { FakeResponse } from "./testing/fake-provider.js";
 
-const refactorConfig = resolveConfig({ mode: "refactor" });
+const refactorConfig = resolveConfig({ mode: "refactor", format: "always" });
 const configWithTests = resolveConfig({
+  format: "always",
   mode: "refactor",
   testCommand: "npm test",
 });
@@ -205,7 +206,10 @@ describe("refactor mode: test command", () => {
   it("isn't used outside refactor mode", async () => {
     const { runTests, requests } = fakeTestRunner({ passed: true });
     const { run } = setup('{"insertions": []}', { runTests });
-    const result = await run(undefined, resolveConfig({ testCommand: "x" }));
+    const result = await run(
+      undefined,
+      resolveConfig({ testCommand: "x", format: "always" }),
+    );
     expect(result.changesLogic).toBe(false);
     expect(requests).toHaveLength(0);
   });

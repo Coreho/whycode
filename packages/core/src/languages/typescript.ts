@@ -4,6 +4,7 @@
 // exports three adapters.
 import * as prettier from "prettier";
 import type { LanguageAdapter } from "./adapter.js";
+import { prettierAdopted } from "./formatter-adoption.js";
 import type { GrammarSpec, TokenRules } from "./tree-sitter.js";
 import { treeSitterTokens } from "./tree-sitter.js";
 
@@ -45,6 +46,7 @@ function createScriptAdapter(dialect: ScriptDialect): LanguageAdapter {
     lineComment: "//",
     format: (code, filePath) =>
       formatWithPrettier(code, filePath ?? dialect.fallbackFileName),
+    formatter: { name: "Prettier", isAdopted: prettierAdopted },
     tokens: (code) =>
       treeSitterTokens(code, dialect.grammar, SCRIPT_TOKEN_RULES),
   };

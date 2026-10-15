@@ -3,6 +3,7 @@
 import type { ProcessRunner } from "../process.js";
 import { runProcess } from "../process.js";
 import type { LanguageAdapter } from "./adapter.js";
+import { csharpierAdopted } from "./formatter-adoption.js";
 import type { GrammarSpec, TokenRules } from "./tree-sitter.js";
 import { treeSitterTokens } from "./tree-sitter.js";
 
@@ -29,6 +30,7 @@ export function createCSharpAdapter(
     extensions: [".cs"],
     lineComment: "//",
     format: (code, filePath) => formatWithCSharpier(code, filePath, run),
+    formatter: { name: "CSharpier", isAdopted: csharpierAdopted },
     tokens: csharpTokens,
   };
 }

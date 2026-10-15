@@ -22,6 +22,7 @@ describe("resolveConfig", () => {
       provider: "anthropic",
       model: "claude-sonnet-5-5",
       testCommand: null,
+      format: "auto",
     });
   });
 

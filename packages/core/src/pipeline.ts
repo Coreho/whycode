@@ -96,6 +96,14 @@ interface Job {
   byteOrderMark: string;
   config: WhycodeConfig;
   provider: AIProvider;
+  /** Whether to run the formatter, and the note to show when it isn't run. */
+  formatting: FormattingPlan;
+}
+
+interface FormattingPlan {
+  enabled: boolean;
+  /** Why formatting was skipped on purpose; undefined when it was wanted. */
+  skippedNote?: string;
 }
 
 export async function processFile(
@@ -130,6 +138,10 @@ export async function processFile(
     byteOrderMark,
     config,
     provider: deps.provider,
+    formatting:
+      language.mode === "full"
+        ? await planFormatting(language.adapter, input, config)
+        : { enabled: false },
   };
   try {
     if (config.mode === "refactor") {
@@ -168,12 +180,8 @@ async function runFullMode(
   const base = { languageId: adapter.id, mode: "full" as const };
 
   // Step 2: format. A missing formatter is a warning, not a failure.
-  const formatting = await formatCode(adapter, job.code, job.input);
-  if (!formatting.formatted) {
-    warnings.push(
-      `No formatter available for ${adapter.id}; formatting was skipped.`,
-    );
-  }
+  const formatting = await formatCode(adapter, job.code, job);
+  if (!formatting.formatted) warnings.push(formattingSkipped(job, adapter));
   const formattedCode = formatting.code;
 
   // Step 3: record the comment-free token stream.
@@ -209,7 +217,7 @@ async function runFullMode(
   // badly placed comment doesn't cost all the others.
   const verification = {
     adapter,
-    input: job.input,
+    job,
     formattedCode,
     tokensBefore,
   };
@@ -246,7 +254,7 @@ async function runFullMode(
 /** What comment insertions are checked against. */
 interface VerificationBase {
   adapter: LanguageAdapter;
-  input: FileInput;
+  job: Job;
   formattedCode: string;
   tokensBefore: readonly string[];
 }
@@ -278,7 +286,7 @@ async function insertAndVerify(
   );
   let reformatted: string;
   try {
-    reformatted = (await formatCode(base.adapter, inserted.code, base.input))
+    reformatted = (await formatCode(base.adapter, inserted.code, base.job))
       .code;
   } catch (error) {
     return {
@@ -340,10 +348,49 @@ async function safeInsertions(
 async function formatCode(
   adapter: LanguageAdapter,
   code: string,
-  input: FileInput,
+  job: Job,
 ): Promise<{ code: string; formatted: boolean }> {
+  if (!job.formatting.enabled) return { code: toLf(code), formatted: false };
+  const { input } = job;
   const result = await adapter.format(code, input.absolutePath ?? input.path);
   return { code: toLf(result.code), formatted: result.formatted };
+}
+
+/**
+ * Formatting style is the project's choice: with format "auto", a formatter
+ * runs only when the project has adopted it (a config file or dependency),
+ * so WhyCode never imposes a formatter's defaults on code that doesn't use it.
+ */
+async function planFormatting(
+  adapter: LanguageAdapter,
+  input: FileInput,
+  config: WhycodeConfig,
+): Promise<FormattingPlan> {
+  if (config.format === "never") {
+    return {
+      enabled: false,
+      skippedNote: "Formatting was skipped, as configured.",
+    };
+  }
+  const formatter = adapter.formatter;
+  if (config.format === "always" || formatter === undefined) {
+    return { enabled: true };
+  }
+  if (await formatter.isAdopted(input.absolutePath ?? input.path)) {
+    return { enabled: true };
+  }
+  return {
+    enabled: false,
+    skippedNote: `Formatting was skipped: this project isn't set up for ${formatter.name}, so its default style wasn't imposed. Use --format to format anyway.`,
+  };
+}
+
+/** The note for a file whose formatter didn't run. */
+function formattingSkipped(job: Job, adapter: LanguageAdapter): string {
+  return (
+    job.formatting.skippedNote ??
+    `No formatter available for ${adapter.id}; formatting was skipped.`
+  );
 }
 
 async function runCommentsOnlyMode(
@@ -396,12 +443,8 @@ async function runRefactorMode(
   const skip = (reason: string) => skippedResult(job.input, reason, base);
 
   // Step 2: format, so the AI and the diff start from clean code.
-  const formatting = await formatCode(adapter, job.code, job.input);
-  if (!formatting.formatted) {
-    warnings.push(
-      `No formatter available for ${adapter.id}; formatting was skipped.`,
-    );
-  }
+  const formatting = await formatCode(adapter, job.code, job);
+  if (!formatting.formatted) warnings.push(formattingSkipped(job, adapter));
 
   const plan = await requestRefactorPlan(job, adapter.id, formatting.code);
   if (!plan.ok) return skip(plan.error);
@@ -410,7 +453,7 @@ async function runRefactorMode(
   // parses it without errors.
   let rewritten: string;
   try {
-    rewritten = (await formatCode(adapter, toLf(plan.code), job.input)).code;
+    rewritten = (await formatCode(adapter, toLf(plan.code), job)).code;
   } catch (error) {
     return skip(
       `the formatter rejected the rewritten code (${errorMessage(error)})`,

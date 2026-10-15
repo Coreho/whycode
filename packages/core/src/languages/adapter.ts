@@ -21,6 +21,15 @@ export interface LanguageAdapter {
   ): Promise<{ code: string; formatted: boolean }>;
   /** Every token of the code except comments, in source order. */
   tokens(code: string): Promise<string[]>;
+  /**
+   * The formatter, and whether the project around a file has adopted it (a
+   * config file or dependency). WhyCode only runs a formatter the project
+   * uses unless told otherwise. Omitted: always format (gofmt, rustfmt).
+   */
+  formatter?: {
+    name: string;
+    isAdopted(filePath: string): Promise<boolean>;
+  };
 }
 
 /** Lowercase extension of a path including the dot, or "" if it has none. */

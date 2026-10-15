@@ -25,6 +25,7 @@ export {
 } from "./config.js";
 export type {
   CommentLevel,
+  FormatSetting,
   ConfigOverrides,
   Mode,
   ProviderName,

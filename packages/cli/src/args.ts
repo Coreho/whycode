@@ -25,11 +25,12 @@ export type ParsedArgs =
       overrides: ConfigOverrides;
       list: boolean;
     }
-  | { kind: "preview"; path: string; plan: string }
+  | { kind: "preview"; path: string; plan: string; overrides: ConfigOverrides }
   | {
       kind: "write";
       path: string;
       plan: string;
+      overrides: ConfigOverrides;
       fingerprint: string;
       acceptSuggestions: number[];
     }
@@ -46,6 +47,8 @@ const OPTIONS = {
   "accept-suggestions": { type: "string" },
   list: { type: "boolean" },
   staged: { type: "boolean" },
+  format: { type: "boolean" },
+  "no-format": { type: "boolean" },
   diff: { type: "string" },
   help: { type: "boolean", short: "h" },
   version: { type: "boolean", short: "v" },
@@ -56,7 +59,15 @@ type FlagValues = ReturnType<typeof parseFlags>["values"];
 
 /** The flags each command accepts, besides --help and --version. */
 const COMMAND_FLAGS = {
-  check: ["comment-level", "provider", "model", "staged", "diff"],
+  check: [
+    "comment-level",
+    "provider",
+    "model",
+    "staged",
+    "diff",
+    "format",
+    "no-format",
+  ],
   fix: [
     "comment-level",
     "provider",
@@ -65,10 +76,12 @@ const COMMAND_FLAGS = {
     "refactor",
     "staged",
     "diff",
+    "format",
+    "no-format",
   ],
-  prompt: ["comment-level", "list"],
-  preview: ["plan"],
-  write: ["plan", "fingerprint", "accept-suggestions"],
+  prompt: ["comment-level", "list", "format", "no-format"],
+  preview: ["plan", "format", "no-format"],
+  write: ["plan", "fingerprint", "accept-suggestions", "format", "no-format"],
 } as const satisfies Record<string, readonly Flag[]>;
 type Command = keyof typeof COMMAND_FLAGS;
 
@@ -161,7 +174,11 @@ function parseAgentStep(
       `"whycode ${command}" needs --plan <file> (or - for stdin).`,
     );
   }
-  if (command === "preview") return { kind: "preview", path, plan };
+  // Only --format and --no-format can be set here; they must match the
+  // prompt's, since formatting changes the line numbers the plan refers to.
+  const overrides = parseOverrides(values);
+  if (typeof overrides === "string") return usageError(overrides);
+  if (command === "preview") return { kind: "preview", path, plan, overrides };
 
   const fingerprint = values.fingerprint;
   if (fingerprint === undefined) {
@@ -175,7 +192,14 @@ function parseAgentStep(
       "--accept-suggestions takes suggestion numbers separated by commas, e.g. 1,3.",
     );
   }
-  return { kind: "write", path, plan, fingerprint, acceptSuggestions };
+  return {
+    kind: "write",
+    path,
+    plan,
+    overrides,
+    fingerprint,
+    acceptSuggestions,
+  };
 }
 
 function unsupportedFlag(
@@ -213,6 +237,11 @@ function parseFlags(argv: readonly string[]) {
 /** Config overrides from flags, or a message describing the bad value. */
 function parseOverrides(values: FlagValues): ConfigOverrides | string {
   const overrides: ConfigOverrides = {};
+  if (values.format === true && values["no-format"] === true) {
+    return "--format and --no-format can't be combined.";
+  }
+  if (values.format === true) overrides.format = "always";
+  if (values["no-format"] === true) overrides.format = "never";
   const level = values["comment-level"];
   if (level !== undefined) {
     const commentLevel = COMMENT_LEVELS.find((known) => known === level);

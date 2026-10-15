@@ -26,6 +26,20 @@ describe("parseCommandLine", () => {
     });
   });
 
+  it("maps --format and --no-format to the format setting, agent steps included", () => {
+    expect(parseCommandLine(["check", ".", "--format"])).toMatchObject({
+      overrides: { format: "always" },
+    });
+    expect(parseCommandLine(["fix", ".", "--no-format"])).toMatchObject({
+      overrides: { format: "never" },
+    });
+    expect(
+      parseCommandLine(["preview", "a.py", "--plan", "-", "--format"]),
+    ).toMatchObject({ kind: "preview", overrides: { format: "always" } });
+    const both = parseCommandLine(["check", ".", "--format", "--no-format"]);
+    expect(both.kind === "error" && both.message).toMatch(/can't be combined/);
+  });
+
   it("leaves unset flags out, so the config file decides", () => {
     expect(parseCommandLine(["check", "."])).toEqual({
       kind: "check",

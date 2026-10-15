@@ -37,7 +37,7 @@ async function runCode(
 ) {
   return processFile(
     { path: join(FIXTURES, "verification.java"), code },
-    resolveConfig(),
+    resolveConfig({ format: "always" }),
     { provider: new FakeAIProvider(reply), adapters },
   );
 }

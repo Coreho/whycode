@@ -1,5 +1,7 @@
 // Tests run against the core's TypeScript source, so they don't need a
-// fresh build of @whycode/core first.
+// fresh build of @whycode/core first. Some tests drive real git
+// subprocesses, which can pass Vitest's 5-second default when the whole
+// suite runs in parallel, so tests get longer to finish.
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
@@ -15,5 +17,8 @@ export default defineConfig({
       },
       { find: /^@whycode\/core$/, replacement: coreSource("index.ts") },
     ],
+  },
+  test: {
+    testTimeout: 30_000,
   },
 });

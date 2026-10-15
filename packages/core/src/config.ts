@@ -9,6 +9,8 @@ export const CONFIG_FILE_NAME = ".whycoderc.json";
 const commentLevelSchema = z.enum(["light", "medium", "heavy"]);
 const modeSchema = z.enum(["safe", "refactor"]);
 const providerNameSchema = z.enum(["anthropic", "openrouter", "host"]);
+/** auto: format only with a formatter the project has adopted. */
+const formatSchema = z.enum(["auto", "always", "never"]);
 
 // strictObject rejects unknown keys, so typos like "commentlevel" are reported.
 export const configSchema = z.strictObject({
@@ -19,12 +21,14 @@ export const configSchema = z.strictObject({
   provider: providerNameSchema.default("anthropic"),
   model: z.string().min(1).default("claude-sonnet-5-5"),
   testCommand: z.string().min(1).nullable().default(null),
+  format: formatSchema.default("auto"),
 });
 
 export type WhycodeConfig = z.output<typeof configSchema>;
 export type CommentLevel = z.output<typeof commentLevelSchema>;
 export type Mode = z.output<typeof modeSchema>;
 export type ProviderName = z.output<typeof providerNameSchema>;
+export type FormatSetting = z.output<typeof formatSchema>;
 /** Values from command-line flags; undefined means "flag not given". */
 export type ConfigOverrides = Partial<WhycodeConfig>;
 
