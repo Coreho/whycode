@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+
+# Secrets: never commit these (WhyCode also refuses to send them to an AI).
+.env*
+*.pem
+*.key
