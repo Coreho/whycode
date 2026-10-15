@@ -3,6 +3,7 @@ dist/
 coverage/
 *.tsbuildinfo
 *.log
+validation/runs/
 
 # Secrets: never commit these (WhyCode also refuses to send them to an AI).
 .env*

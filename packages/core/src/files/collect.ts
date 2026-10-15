@@ -3,8 +3,8 @@
 // first: files git ignores and files that may hold secrets are never
 // collected, so no front-end can read them or send them to an AI.
 import type { Dirent, Stats } from "node:fs";
-import { lstat, readdir } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { lstat, readdir, realpath } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import picomatch from "picomatch";
 import type { WhycodeConfig } from "../config.js";
 import type { LanguageAdapter } from "../languages/adapter.js";
@@ -115,7 +115,12 @@ class Collector {
     const relPath = fromRoot.split(sep).join("/");
     const stats = await lstatOrUndefined(absolutePath);
     if (stats === undefined) return this.skip(userPath, "missing");
-    if (stats.isSymbolicLink()) return this.skip(relPath, "symlink");
+    if (
+      stats.isSymbolicLink() ||
+      (await passesThroughLink(this.options.rootDir, absolutePath, relPath))
+    ) {
+      return this.skip(relPath, "symlink");
+    }
     if (isInsideGitDir(relPath)) return this.skip(relPath, "git-internal");
     if (stats.isDirectory()) {
       const problem = await this.directoryProblem(relPath);
@@ -233,6 +238,24 @@ function isOutside(fromRoot: string): boolean {
 
 function isInsideGitDir(relPath: string): boolean {
   return relPath === ".git" || relPath.startsWith(".git/");
+}
+
+/**
+ * True when a folder on the way from the root to the path is a link, so the
+ * path really leads somewhere else (possibly outside the project).
+ */
+async function passesThroughLink(
+  rootDir: string,
+  absolutePath: string,
+  relPath: string,
+): Promise<boolean> {
+  const realRoot = await realpath(rootDir);
+  const expected = relPath === "" ? realRoot : join(realRoot, relPath);
+  const actual = await realpath(absolutePath);
+  // Windows paths are case-insensitive, and realpath returns the stored case.
+  return process.platform === "win32"
+    ? expected.toLowerCase() !== actual.toLowerCase()
+    : expected !== actual;
 }
 
 async function lstatOrUndefined(path: string): Promise<Stats | undefined> {

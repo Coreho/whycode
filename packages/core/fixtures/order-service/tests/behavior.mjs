@@ -1,0 +1,28 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { quoteOrder, allocateRefund } from '../src/checkout.js';
+import { applyWebhook, renderReceipt } from '../src/webhooks.js';
+import { withRetry } from '../src/retry.js';
+
+test('empty cart has no shipping',()=>assert.deepEqual(quoteOrder([]),{subtotal:0,discount:0,shipping:0,total:0}));
+test('shipping threshold is evaluated before discount',()=>assert.deepEqual(quoteOrder([{sku:'a',unitCents:5000,quantity:1}],{discountBps:2000}),{subtotal:5000,discount:1000,shipping:0,total:4000}));
+test('discount rounds down to whole cents',()=>assert.deepEqual(quoteOrder([{sku:'a',unitCents:999,quantity:1}],{discountBps:3333}),{subtotal:999,discount:332,shipping:599,total:1266}));
+test('duplicate SKUs are rejected',()=>assert.throws(()=>quoteOrder([{sku:'a',unitCents:1,quantity:1},{sku:'a',unitCents:1,quantity:1}]),/duplicate/));
+test('fractional quantities are rejected',()=>assert.throws(()=>quoteOrder([{sku:'a',unitCents:1,quantity:1.5}]),/line item/));
+test('overflow is rejected',()=>assert.throws(()=>quoteOrder([{sku:'a',unitCents:Number.MAX_SAFE_INTEGER,quantity:2}]),/overflow/));
+test('invalid discounts are rejected',()=>assert.throws(()=>quoteOrder([],{discountBps:10001}),/discount/));
+test('refund remainder ties use original line order',()=>assert.deepEqual(allocateRefund(2,[{id:'a',paid:1},{id:'b',paid:1},{id:'c',paid:1}]),[{id:'a',refund:1},{id:'b',refund:1},{id:'c',refund:0}]));
+test('refunds conserve cents across many cart sizes',()=>{for(let n=1;n<=12;n++){const lines=Array.from({length:n},(_,i)=>({id:String(i),paid:i+1}));const total=n*(n+1)/2;for(let amount=0;amount<=total;amount++){const refunds=allocateRefund(amount,lines);assert.equal(refunds.reduce((sum,x)=>sum+x.refund,0),amount);assert.ok(refunds.every((x,i)=>x.refund>=0&&x.refund<=lines[i].paid));}}});
+test('refunds cannot exceed payment',()=>assert.throws(()=>allocateRefund(11,[{id:'a',paid:10}]),/over refund/));
+test('zero-value lines receive zero refund',()=>assert.deepEqual(allocateRefund(0,[{id:'a',paid:0}]),[{id:'a',refund:0}]));
+test('webhook applies without mutating caller state',()=>{const state={status:'pending',revision:0,seen:new Set()};const result=applyWebhook(state,{id:'e1',revision:1,status:'paid'});assert.equal(result.state.status,'paid');assert.equal(state.status,'pending');assert.equal(state.seen.size,0);});
+test('duplicate webhook is a no-op',()=>{const state={status:'paid',revision:1,seen:new Set(['e1'])};assert.equal(applyWebhook(state,{id:'e1',revision:2,status:'refunded'}).reason,'duplicate');});
+test('stale webhook is recorded without reversing status',()=>{const state={status:'paid',revision:2,seen:new Set()};const result=applyWebhook(state,{id:'old',revision:1,status:'pending'});assert.equal(result.reason,'stale');assert.equal(result.state.status,'paid');assert.ok(result.state.seen.has('old'));});
+test('terminal order cannot return to paid',()=>assert.throws(()=>applyWebhook({status:'refunded',revision:2,seen:new Set()},{id:'e3',revision:3,status:'paid'}),/invalid transition/));
+test('receipt literal stays byte-for-byte intact',()=>assert.equal(renderReceipt({id:'A1',total:1266}),'Order: A1\n  // This is receipt text, not a JavaScript comment.\nTotal: 1266'));
+test('server retries back off and then succeed',async()=>{const waits=[];const responses=[{status:503},{status:502},{status:200}];assert.equal((await withRetry(async()=>responses.shift(),{sleep:async ms=>waits.push(ms)})).status,200);assert.deepEqual(waits,[100,200]);});
+test('retry-after is capped',async()=>{const waits=[];let calls=0;await withRetry(async()=>({status:++calls===1?429:200,headers:{'retry-after':'8'}}),{sleep:async ms=>waits.push(ms)});assert.deepEqual(waits,[2000]);});
+test('client errors are not retried',async()=>{let calls=0;await withRetry(async()=>{calls++;return {status:400};});assert.equal(calls,1);});
+test('exhausted retries return last response',async()=>{let calls=0;assert.equal((await withRetry(async()=>{calls++;return {status:503};},{sleep:async()=>{}})).status,503);assert.equal(calls,3);});
+test('transport exceptions propagate',async()=>assert.rejects(()=>withRetry(async()=>{throw new Error('offline');}),/offline/));
+test('invalid attempt count is rejected',async()=>assert.rejects(()=>withRetry(async()=>({status:200}),{attempts:0}),/attempts/));

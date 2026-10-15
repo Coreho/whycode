@@ -86,6 +86,50 @@ describe("redactSecrets", () => {
     );
   });
 
+  it("masks Go := assignments and JavaScript template strings", () => {
+    const result = redactSecrets(
+      'password := "hunter2hunter2"\nconst apiKey = `abcd1234efgh`;',
+    );
+    expect(result.code).toBe(
+      'password := "[REDACTED]"\nconst apiKey = `[REDACTED]`;',
+    );
+  });
+
+  it("masks unquoted secrets that end a line, as in shell scripts", () => {
+    const code = [
+      "export API_TOKEN=abcd1234efgh5678",
+      "DB_PASSWORD = s3cr3tvalue",
+      "token = get_token()",
+      "password = check(user, attempt)",
+      "TOKEN=short",
+    ].join("\n");
+    expect(redactSecrets(code).code).toBe(
+      [
+        "export API_TOKEN=[REDACTED]",
+        "DB_PASSWORD = [REDACTED]",
+        "token = get_token()",
+        "password = check(user, attempt)",
+        "TOKEN=short",
+      ].join("\n"),
+    );
+  });
+
+  it("masks the password in a URL", () => {
+    const code = 'DSN = connect("postgres://app:pa55word@db:5432/main")';
+    expect(redactSecrets(code).code).toBe(
+      'DSN = connect("postgres://app:[REDACTED]@db:5432/main")',
+    );
+  });
+
+  it("masks PGP private key blocks", () => {
+    const code = [
+      "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+      "lQOYBGXfake",
+      "-----END PGP PRIVATE KEY BLOCK-----",
+    ].join("\n");
+    expect(redactSecrets(code).code).not.toContain("lQOYBGXfake");
+  });
+
   it("leaves ordinary code untouched", () => {
     const code = "def total(items):\n    return sum(i.price for i in items)\n";
     expect(redactSecrets(code)).toEqual({ code, redactions: 0 });

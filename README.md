@@ -330,7 +330,8 @@ Some files are never sent in refactor mode:
 The pipeline never writes to disk, so running tests is up to the front-end.
 `createFileSwapTestRunner({ rootDir })` is the default runner. It writes the
 rewrite over the file, runs `testCommand` through the shell from `rootDir`,
-and always restores the original bytes afterwards, even when the tests fail.
+and always restores the original bytes afterwards, even when the tests fail
+or you press Ctrl+C (only a hard kill can leave the rewrite in place).
 It runs one file at a time, and the command comes from `.whycoderc.json`, so
 only use refactor mode with a test command in repositories you trust.
 
@@ -492,6 +493,9 @@ The VS Code extension and GitHub Action packages are being added.
 - **Line endings are LF** everywhere (`.gitattributes`), so the Prettier check
   passes on Windows checkouts too.
 
-## License
+## Privacy and license
 
-MIT
+[PRIVACY.md](PRIVACY.md) says exactly what WhyCode sends to the AI provider,
+what it never reads, how secrets are masked, and that it stores nothing.
+
+MIT; see [LICENSE](LICENSE).

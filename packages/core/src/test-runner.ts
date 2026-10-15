@@ -1,9 +1,12 @@
 // Runs the project's test command against a refactored file. The pipeline
 // itself never touches the disk, so front-ends pass a TestRunner in; this
 // module's default runner puts the rewritten file in place for the duration
-// of the test command and always restores the original bytes afterwards.
+// of the test command and always restores the original bytes afterwards,
+// also when WhyCode is interrupted (Ctrl+C, a closed terminal) meanwhile.
 import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
+import { constants } from "node:os";
 import { resolve } from "node:path";
 
 export interface TestRunRequest {
@@ -49,12 +52,38 @@ export function createFileSwapTestRunner(
   return async ({ path, code, command }) => {
     const filePath = resolve(options.rootDir, path);
     const original = await readFile(filePath);
+    const stopGuarding = restoreOnSignals(filePath, original, (code) =>
+      process.exit(code),
+    );
     try {
       await writeFile(filePath, code, "utf8");
       return await runShellCommand(command, options.rootDir, timeoutMs);
     } finally {
+      stopGuarding();
       await writeFile(filePath, original);
     }
+  };
+}
+
+const RESTORE_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+
+/**
+ * While the rewrite is in place, a signal that would end WhyCode first puts
+ * the original file back, then exits with the usual 128 + signal number.
+ * Returns a function that removes the guard. Exported for tests.
+ */
+export function restoreOnSignals(
+  filePath: string,
+  original: Buffer,
+  exit: (code: number) => void,
+): () => void {
+  const restoreAndExit = (signal: NodeJS.Signals) => {
+    writeFileSync(filePath, original);
+    exit(128 + (constants.signals[signal] ?? 1));
+  };
+  for (const signal of RESTORE_SIGNALS) process.once(signal, restoreAndExit);
+  return () => {
+    for (const signal of RESTORE_SIGNALS) process.off(signal, restoreAndExit);
   };
 }
 

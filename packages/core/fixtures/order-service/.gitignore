@@ -1,0 +1,6 @@
+ignored/
+__pycache__/
+*.pyc
+.env*
+*.pem
+.ruff_cache/

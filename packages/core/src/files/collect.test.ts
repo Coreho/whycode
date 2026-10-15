@@ -252,4 +252,27 @@ describe("collectFiles", () => {
       { path: "link", kind: "symlink" },
     ]);
   });
+
+  it("does not follow a path through a linked folder", async (context) => {
+    const outside = await mkdtemp(join(tmpdir(), "whycode-outside-"));
+    try {
+      await writeFile(join(outside, "secret.py"), "");
+      try {
+        await symlink(outside, join(root, "linked"), "junction");
+      } catch {
+        context.skip();
+      }
+      expect(skipsOf(await collect(["linked/secret.py"]))).toEqual([
+        { path: "linked/secret.py", kind: "symlink" },
+      ]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a path typed in a different case on Windows", async (context) => {
+    if (process.platform !== "win32") context.skip();
+    await files({ "Src/App.py": "" });
+    expect(pathsOf(await collect(["src/app.py"]))).toHaveLength(1);
+  });
 });

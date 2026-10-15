@@ -1,0 +1,7 @@
+{
+  "commentLevel": "light",
+  "provider": "openrouter",
+  "model": "anthropic/claude-sonnet-5.5",
+  "include": ["src/**", "batch/**"],
+  "exclude": ["node_modules/**", "dist/**", "tests/**", "ignored/**"]
+}

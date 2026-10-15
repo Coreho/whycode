@@ -30,12 +30,24 @@ const TOKEN_PATTERNS: readonly RegExp[] = [
   /\b[rs]k_(?:live|test)_[0-9A-Za-z]{16,}\b/g,
 ];
 
-// A quoted value assigned to a secret-sounding name, e.g. api_key = "...".
+// A quoted value assigned to a secret-sounding name: api_key = "...",
+// "token": '...', password := "..." (Go) or secret = `...` (JavaScript).
 const SECRET_ASSIGNMENT =
-  /((?:api[_-]?key|secret|token|passw(?:or)?d)\w*["']?\s*[:=]\s*)(["'])([^"'\n]{8,})\2/gi;
+  /((?:api[_-]?key|secret|token|passw(?:or)?d)\w*["']?\s*(?::=|[:=])\s*)(["'`])([^"'`\n]{8,})\2/gi;
 
+// An unquoted value that ends its line, as in shell scripts and env files:
+// export API_TOKEN=abc... Brackets and parentheses rule out code such as
+// token = get_token().
+const UNQUOTED_SECRET_ASSIGNMENT =
+  /^(\s*(?:export\s+)?\w*(?:api[_-]?key|secret|token|passw(?:or)?d)\w*\s*=\s*)([^\s"'`#;()[\]{},]{8,})(?=\s*$)/gim;
+
+// The password in a URL such as postgres://user:password@host.
+const URL_PASSWORD =
+  /(\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@"'`]+:)([^\s@"'`/]+)(?=@)/gi;
+
+// PEM private keys and PGP private key blocks.
 const PRIVATE_KEY_BLOCK =
-  /(-----BEGIN [A-Z ]*PRIVATE KEY-----)([\s\S]*?)(-----END [A-Z ]*PRIVATE KEY-----)/g;
+  /(-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----)([\s\S]*?)(-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----)/g;
 
 export interface RedactionResult {
   code: string;
@@ -66,5 +78,12 @@ export function redactSecrets(code: string): RedactionResult {
       return `${prefix}${quote}${REDACTED}${quote}`;
     },
   );
+  for (const pattern of [UNQUOTED_SECRET_ASSIGNMENT, URL_PASSWORD]) {
+    result = result.replace(pattern, (match, prefix: string, value: string) => {
+      if (value === REDACTED) return match;
+      redactions += 1;
+      return `${prefix}${REDACTED}`;
+    });
+  }
   return { code: result, redactions };
 }

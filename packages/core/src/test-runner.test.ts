@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createFileSwapTestRunner } from "./test-runner.js";
+import { createFileSwapTestRunner, restoreOnSignals } from "./test-runner.js";
 
 const ORIGINAL = "original\r\n";
 // Exits 0 only if app.txt holds the rewrite while the command runs.
@@ -47,5 +47,44 @@ describe("createFileSwapTestRunner", () => {
       runner()({ path: "missing.txt", code: "x", command: "echo hi" }),
     ).rejects.toThrow(/ENOENT/);
     await expect(readFile(join(rootDir, "missing.txt"))).rejects.toThrow();
+  });
+});
+
+describe("restoreOnSignals", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "whycode-signal-"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("puts the original back and exits when interrupted", async () => {
+    const path = join(dir, "app.py");
+    await writeFile(path, "rewritten\n");
+    const exitCodes: number[] = [];
+    const stop = restoreOnSignals(path, Buffer.from("original\n"), (code) =>
+      exitCodes.push(code),
+    );
+    try {
+      process.emit("SIGINT", "SIGINT");
+    } finally {
+      stop();
+    }
+    expect(await readFile(path, "utf8")).toBe("original\n");
+    expect(exitCodes).toEqual([130]);
+  });
+
+  it("stops guarding once the test command is done", async () => {
+    const path = join(dir, "app.py");
+    await writeFile(path, "kept\n");
+    const before = process.listenerCount("SIGTERM");
+    const stop = restoreOnSignals(path, Buffer.from("original\n"), () => {});
+    expect(process.listenerCount("SIGTERM")).toBe(before + 1);
+    stop();
+    expect(process.listenerCount("SIGTERM")).toBe(before);
+    expect(await readFile(path, "utf8")).toBe("kept\n");
   });
 });
