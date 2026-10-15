@@ -9,7 +9,9 @@ import type { AIRequest } from "../ai/provider.js";
 import { resolveConfig } from "../config.js";
 import { processFile } from "../pipeline.js";
 import { commentPlanReply, FakeAIProvider } from "../testing/fake-provider.js";
+import type { LanguageAdapter } from "./adapter.js";
 import { defaultAdapters } from "./index.js";
+import { createPythonAdapter } from "./python.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "..", "..", "fixtures");
 const COMMENT_TEXT = "Explains the next definition.";
@@ -60,14 +62,21 @@ function commentAboveLineMatching(pattern: RegExp) {
 async function runFixture(
   relativePath: string,
   reply: (request: AIRequest) => string,
+  adapters: readonly LanguageAdapter[] = defaultAdapters,
 ) {
   const code = await readFile(join(FIXTURES_DIR, relativePath), "utf8");
   const provider = new FakeAIProvider(reply);
   return processFile({ path: relativePath, code }, resolveConfig(), {
     provider,
-    adapters: defaultAdapters,
+    adapters,
   });
 }
+
+// Ruff joins backslash-continued lines, so this Python adapter skips
+// formatting to keep the continuation in place for the test.
+const unformattedPython = createPythonAdapter({
+  runProcess: () => Promise.resolve({ kind: "not-found" }),
+});
 
 describe("fixtures: comments above definitions pass verification", () => {
   it.each([
@@ -110,9 +119,8 @@ describe("fixtures: misplaced comments are caught", () => {
   it("refuses to put a comment after a Python backslash continuation", async () => {
     const result = await runFixture(
       "python/messy.py",
-      commentAboveLineMatching(
-        /^\s*subtotal \* self\.tax_rate|^\s*subtotal\*self\.tax_rate/,
-      ),
+      commentAboveLineMatching(/^\s*subtotal\*self\.tax_rate/),
+      [unformattedPython],
     );
     expect(result.outputCode).not.toContain("Misplaced comment.");
     expect(result.warnings.join("\n")).toMatch(/backslash line continuation/);

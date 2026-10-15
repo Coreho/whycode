@@ -88,6 +88,10 @@ they run the real pipeline in tests with no network and no formatters installed.
 
 - Node.js 22.12 or newer
 - pnpm 12 (`npm install -g pnpm`)
+- Optional: [Ruff](https://docs.astral.sh/ruff/) on PATH, to format Python
+  (`pip install ruff`, or `winget install astral-sh.ruff` on Windows). Without
+  it, Python files still get comments and verification, and one Ruff test is
+  skipped.
 
 ## Development
 
