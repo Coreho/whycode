@@ -1,6 +1,10 @@
 # WhyCode
 
-_Last updated: 2026-10-14_
+[![CI](https://github.com/Coreho/whycode/actions/workflows/ci.yml/badge.svg)](https://github.com/Coreho/whycode/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node.js 22.12+](https://img.shields.io/badge/node-%3E%3D22.12-339933.svg)](https://nodejs.org/)
+
+_Last updated: 2026-10-15_ · Website: <https://coreho.github.io/whycode/>
 
 WhyCode cleans up AI-written code so humans can understand it. It fixes
 formatting and adds comments that explain **what** the code does and **why**,
@@ -95,6 +99,16 @@ packages/
 The CLI, Claude Code plugin, VS Code extension, and GitHub Action packages are
 added in later phases.
 
+Outside `packages/`:
+
+```
+site/                    # landing page for GitHub Pages (plain HTML + CSS)
+.github/
+  workflows/ci.yml       # build + test + lint on every push and PR
+  workflows/pages.yml    # deploys site/ to GitHub Pages
+  ISSUE_TEMPLATE/        # bug report and feature request forms
+```
+
 ## Toolchain notes
 
 - **TypeScript is pinned to 6.0.x.** TypeScript 7 is out, but
@@ -105,4 +119,4 @@ added in later phases.
 
 ## License
 
-MIT
+[MIT](LICENSE)

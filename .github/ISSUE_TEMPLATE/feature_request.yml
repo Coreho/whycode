@@ -1,0 +1,21 @@
+# Feature request form: captures the problem first, then the proposed fix.
+name: Feature request
+description: Suggest an idea or improvement for WhyCode.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered

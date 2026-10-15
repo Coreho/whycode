@@ -1,0 +1,40 @@
+# Bug report form: asks for what's needed to reproduce a problem.
+name: Bug report
+description: Something in WhyCode doesn't work as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: A small code sample and the command you ran help most. Remove any secrets first.
+      render: shell
+  - type: dropdown
+    id: front-end
+    attributes:
+      label: Where did you run it?
+      options:
+        - CLI
+        - Claude Code plugin
+        - VS Code extension
+        - GitHub Action
+        - Core library
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `whycode --version`, or the commit you built from.
+  - type: input
+    id: environment
+    attributes:
+      label: OS and Node.js version
+      placeholder: macOS 15, Node 22.12

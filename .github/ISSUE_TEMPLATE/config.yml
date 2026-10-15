@@ -1,0 +1,2 @@
+# Issue chooser settings: only the forms above, no blank issues.
+blank_issues_enabled: false
