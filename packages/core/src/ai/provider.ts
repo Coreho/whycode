@@ -5,7 +5,7 @@ export interface AIRequest {
   system: string;
   user: string;
   /** JSON Schema the response must match, for providers that can enforce it. */
-  jsonSchema?: object;
+  jsonSchema?: Record<string, unknown>;
 }
 
 export interface AIProvider {

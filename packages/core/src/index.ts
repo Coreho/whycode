@@ -30,7 +30,13 @@ export type {
 } from "./config.js";
 
 export type { AIProvider, AIRequest } from "./ai/provider.js";
-export { commentPlanSchema, parseCommentPlan } from "./ai/comment-plan.js";
+export { createAnthropicProvider, MissingApiKeyError } from "./ai/anthropic.js";
+export type { AnthropicProviderOptions } from "./ai/anthropic.js";
+export {
+  commentPlanJsonSchema,
+  commentPlanSchema,
+  parseCommentPlan,
+} from "./ai/comment-plan.js";
 export type {
   CommentInsertion,
   CommentPlan,

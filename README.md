@@ -22,7 +22,10 @@ build plan.
   through the pipeline, with tree-sitter tokens and real formatters.
 - **Phase 4 (verification proof): done.** Tests with the real adapters show
   that every way a comment could change the code is caught or refused.
-- **Next: Phase 5,** the Anthropic provider and tuned comment prompts.
+- **Phase 5 (Claude provider and prompts): done.** The core can now get real
+  comments from Claude through the API, with tuned prompts per comment level.
+- **Next: Phase 6,** the `whycode` CLI with interactive preview (and TASK-11,
+  the trailing-comma fix, before the CLI ships).
 
 ## Supported languages
 
@@ -63,8 +66,9 @@ and returns a result. It never writes to disk.
 4. **Record the token stream**, ignoring comments.
 5. **Ask the AI for a comment plan.** Likely secrets are masked first. The AI
    returns JSON listing comments to insert and suggestions for existing
-   comments; it never returns rewritten code. An invalid reply gets one retry,
-   then the file is skipped.
+   comments; it never returns rewritten code. Providers that support it are
+   held to a JSON schema. An invalid reply gets one retry, then the file is
+   skipped.
 6. **Insert comments** as new lines above their targets, then re-format.
    Existing lines are never edited.
 7. **Verify:** the token stream must exactly match step 4. If it doesn't, or if
@@ -101,6 +105,28 @@ overridden by command-line flags. Unknown keys are rejected so typos are caught.
 Refactor mode (`"mode": "refactor"`) is accepted by the config but not
 implemented yet. Files are skipped with a clear reason.
 
+### Using Claude
+
+`createAnthropicProvider({ model })` connects the pipeline to Claude through the
+Anthropic API. The model comes from config (`claude-sonnet-5-5` by default).
+
+- **API key:** read only from `ANTHROPIC_API_KEY`. If it's missing, creating the
+  provider fails at once with a clear message, before any network call. The key
+  never appears in warnings, errors, or skip reasons.
+- **Structured output:** Claude's reply is constrained to the comment-plan JSON
+  schema, and WhyCode still validates it.
+- **Prompts:** a system prompt per comment level (light, medium, heavy) asks for
+  comments that explain why rather than restate the code, and warns against the
+  placements verification rejects. It is identical for every file in a run, so
+  it is cached.
+- **Refusals:** for models that support it (Sonnet 5.5, Opus 5/5.5, Fable
+  5/5.1), server-side refusal fallback is on. If Claude declines a file for a
+  safety reason, the API retries it on another model. A refusal that still
+  stands skips the file with the reason.
+- **Failures:** a rejected key, rate limiting, a missing model, or a network
+  problem skips that file with a readable reason instead of stopping the run.
+  The SDK retries rate limits and network errors twice first.
+
 ### Testing helpers
 
 `@whycode/core/testing` exports:
@@ -132,6 +158,13 @@ pnpm lint        # ESLint + Prettier check + type check (including tests)
 pnpm format      # rewrite files with Prettier
 ```
 
+The tests never call the Anthropic API, except one live smoke test that runs
+only when you opt in. It makes a real, billed request:
+
+```sh
+ANTHROPIC_API_KEY=sk-ant-... WHYCODE_LIVE_TESTS=1 pnpm test
+```
+
 ### Task tracking
 
 Tasks are tracked with [Backlog.md](https://github.com/MrLesk/Backlog.md) as
@@ -161,7 +194,7 @@ packages/
       privacy.ts         # sensitive-file check and secret masking
       text.ts            # line-ending helpers
       process.ts         # runs external formatters (ruff) with code on stdin
-      ai/                # provider interface, comment-plan schema, prompts
+      ai/                # provider interface, Claude provider, schema, prompts
       comments/          # comment insertion
       languages/         # adapters (python.ts, typescript.ts), shared
                          # tree-sitter tokens, comment-only fallback

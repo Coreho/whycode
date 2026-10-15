@@ -26,6 +26,19 @@ export const commentPlanSchema = z.object({
     .default(() => []),
 });
 
+/**
+ * The comment plan as a JSON Schema, for providers that can make the model's
+ * reply match a schema. The "$schema" dialect marker is dropped because AI
+ * APIs don't need it.
+ */
+export const commentPlanJsonSchema: Record<string, unknown> = (() => {
+  const jsonSchema: Record<string, unknown> = {
+    ...z.toJSONSchema(commentPlanSchema),
+  };
+  delete jsonSchema.$schema;
+  return jsonSchema;
+})();
+
 export type CommentInsertion = z.output<typeof insertionSchema>;
 export type ExistingCommentSuggestion = z.output<
   typeof existingCommentSuggestionSchema

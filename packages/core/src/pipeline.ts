@@ -275,6 +275,7 @@ async function requestCommentPlan(
 ): Promise<PlanOutcome> {
   const redacted = redactSecrets(code);
   const request = buildCommentPrompt({
+    path: job.input.path,
     code: redacted.code,
     languageId,
     commentLevel: job.config.commentLevel,
