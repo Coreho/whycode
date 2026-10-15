@@ -11,7 +11,7 @@ import type { LanguageAdapter } from "../languages/adapter.js";
 import { findAdapterForPath } from "../languages/adapter.js";
 import { findCommentOnlyLanguage } from "../languages/fallback.js";
 import { isSensitivePath } from "../privacy.js";
-import { GitIgnoreRules } from "./gitignore.js";
+import { findGlobalGitIgnore, GitIgnoreRules } from "./gitignore.js";
 
 export interface CollectOptions {
   /** Absolute project root: config globs and .gitignore files are relative to it. */
@@ -25,6 +25,11 @@ export interface CollectOptions {
   adapters: readonly LanguageAdapter[];
   /** Larger files are skipped. Defaults to 1 MB. */
   maxFileBytes?: number;
+  /**
+   * The user's global git excludes file. Found through git by default; false
+   * reads none (for tests).
+   */
+  globalGitIgnore?: string | false;
 }
 
 export interface CollectedFile {
@@ -77,7 +82,12 @@ const SKIP_REASONS: Readonly<Record<SkipKind, string>> = {
 export async function collectFiles(
   options: CollectOptions,
 ): Promise<FileCollection> {
-  const collector = new Collector(options);
+  const globalGitIgnore =
+    options.globalGitIgnore === false
+      ? undefined
+      : (options.globalGitIgnore ??
+        (await findGlobalGitIgnore(options.rootDir)));
+  const collector = new Collector(options, globalGitIgnore);
   for (const path of options.paths) await collector.addUserPath(path);
   return collector.result();
 }
@@ -90,8 +100,11 @@ class Collector {
   private readonly isExcluded: (path: string) => boolean;
   private readonly isExcludedDir: (path: string) => boolean;
 
-  constructor(private readonly options: CollectOptions) {
-    this.gitIgnore = new GitIgnoreRules(options.rootDir);
+  constructor(
+    private readonly options: CollectOptions,
+    globalGitIgnore: string | undefined,
+  ) {
+    this.gitIgnore = new GitIgnoreRules(options.rootDir, globalGitIgnore);
     this.isIncluded = globMatcher(options.config.include);
     this.isExcluded = globMatcher(options.config.exclude);
     this.isExcludedDir = globMatcher(

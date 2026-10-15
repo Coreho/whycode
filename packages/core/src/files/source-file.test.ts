@@ -74,3 +74,16 @@ describe("writeSourceFile", () => {
     expect(await readFile(path, "utf8")).toBe("edited meanwhile\n");
   });
 });
+
+describe("writeSourceFile failures", () => {
+  it("reports a file that was deleted during the review instead of throwing", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "whycode-gone-"));
+    try {
+      const result = await writeSourceFile(join(dir, "gone.py"), "x\n", "x\n");
+      expect(result.ok).toBe(false);
+      expect(!result.ok && result.reason).toMatch(/ENOENT/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

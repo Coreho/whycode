@@ -33,10 +33,20 @@ export async function writeSourceFile(
   code: string,
   expected: string,
 ): Promise<SourceWrite> {
-  const current = await readSourceFile(absolutePath);
-  if (!current.ok || current.code !== expected) {
-    return { ok: false, reason: "the file changed on disk since it was read" };
+  try {
+    const current = await readSourceFile(absolutePath);
+    if (!current.ok || current.code !== expected) {
+      return {
+        ok: false,
+        reason: "the file changed on disk since it was read",
+      };
+    }
+    await writeFile(absolutePath, code, "utf8");
+    return { ok: true };
+  } catch (error) {
+    // Deleted, renamed, read-only or locked: report it, so one file can't
+    // end a review session.
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, reason: message };
   }
-  await writeFile(absolutePath, code, "utf8");
-  return { ok: true };
 }

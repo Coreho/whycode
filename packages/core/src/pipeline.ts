@@ -75,6 +75,8 @@ export interface FileResult {
   warnings: string[];
 }
 
+const BYTE_ORDER_MARK = String.fromCharCode(0xfeff);
+
 /** The AI gets one retry after an invalid reply, then the file is skipped. */
 const MAX_AI_ATTEMPTS = 2;
 
@@ -85,8 +87,11 @@ type ResolvedLanguage =
 /** Working state shared by both modes: LF code plus the original line ending. */
 interface Job {
   input: FileInput;
+  /** The code without a byte-order mark, with LF line endings. */
   code: string;
   lineEnding: LineEnding;
+  /** A byte-order mark the file started with, put back on output. */
+  byteOrderMark: string;
   config: WhycodeConfig;
   provider: AIProvider;
 }
@@ -111,10 +116,16 @@ export async function processFile(
     );
   }
 
+  // A byte-order mark is set aside so that nothing (such as a comment above
+  // line 1) can end up in front of it, where it would break the code.
+  const byteOrderMark = input.code.startsWith(BYTE_ORDER_MARK)
+    ? BYTE_ORDER_MARK
+    : "";
   const job: Job = {
     input,
-    code: toLf(input.code),
+    code: toLf(input.code.slice(byteOrderMark.length)),
     lineEnding: detectLineEnding(input.code),
+    byteOrderMark,
     config,
     provider: deps.provider,
   };
@@ -528,7 +539,7 @@ function buildResult(job: Job, fields: ResultFields): FileResult {
     verification: fields.verification,
     originalCode: job.input.code,
     outputCode: changed
-      ? restoreLineEnding(fields.code, job.lineEnding)
+      ? job.byteOrderMark + restoreLineEnding(fields.code, job.lineEnding)
       : job.input.code,
     // Diffed on LF text so CRLF files don't show "\r" in previews.
     diff: createUnifiedDiff(job.input.path, job.code, fields.code),

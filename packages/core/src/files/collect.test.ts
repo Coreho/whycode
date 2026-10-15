@@ -41,6 +41,8 @@ describe("collectFiles", () => {
       paths,
       config: defaultGlobs,
       adapters: defaultAdapters,
+      // Tests never depend on the developer's own global git excludes.
+      globalGitIgnore: false,
       ...options,
     });
   }
@@ -122,6 +124,43 @@ describe("collectFiles", () => {
     expect(skipsOf(result)).toEqual([
       { path: "scratch.py", kind: "gitignored" },
     ]);
+  });
+
+  it("honors the user's global git excludes file", async () => {
+    const globalDir = await mkdtemp(join(tmpdir(), "whycode-global-"));
+    try {
+      await writeFile(join(globalDir, "ignore"), "*.local.py\n");
+      await files({ "app.py": "", "notes.local.py": "" });
+      const result = await collect(["."], {
+        globalGitIgnore: join(globalDir, "ignore"),
+      });
+      expect(pathsOf(result)).toEqual(["app.py"]);
+      expect(skipsOf(result)).toEqual([
+        { path: "notes.local.py", kind: "gitignored" },
+      ]);
+    } finally {
+      await rm(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads info/exclude through a worktree's .git file", async () => {
+    const mainGit = await mkdtemp(join(tmpdir(), "whycode-maingit-"));
+    try {
+      const worktreeGitDir = join(mainGit, "worktrees", "wt");
+      await mkdir(join(mainGit, "info"), { recursive: true });
+      await mkdir(worktreeGitDir, { recursive: true });
+      await writeFile(join(mainGit, "info", "exclude"), "scratch.py\n");
+      await writeFile(join(worktreeGitDir, "commondir"), "../..\n");
+      await files({
+        ".git": `gitdir: ${worktreeGitDir}\n`,
+        "scratch.py": "",
+        "app.py": "",
+      });
+      const result = await collect(["."]);
+      expect(pathsOf(result)).toEqual(["app.py"]);
+    } finally {
+      await rm(mainGit, { recursive: true, force: true });
+    }
   });
 
   it("refuses files the user names explicitly if git ignores them", async () => {

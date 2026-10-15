@@ -148,11 +148,18 @@ function renderSuggestionBody(
   ].join("\n");
 }
 
+// Every line break a compiler may honor, and control characters, which could
+// rewrite the terminal: AI-written text is shown with neither.
+const DISPLAY_LINE_BREAKS = /\r\n|[\n\r\u0085\u2028\u2029]/;
+// eslint-disable-next-line no-control-regex -- matching control characters is the point
+const CONTROL_CHARACTERS = /[\u0000-\u0008\u000b-\u001f\u007f]/g;
+
 /** Indents each line of a (possibly multi-line) comment behind a diff marker. */
 function markLines(marker: string, text: string): string[] {
   return text
     .trim()
-    .split("\n")
+    .split(DISPLAY_LINE_BREAKS)
+    .map((line) => line.replace(CONTROL_CHARACTERS, ""))
     .map((line) => `    ${marker} ${line.trimEnd()}`);
 }
 

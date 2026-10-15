@@ -300,4 +300,19 @@ describe("processFile: other behavior", () => {
     expect(/[^\r]\n/.test(result.outputCode)).toBe(false);
     expect(result.diff).not.toContain("\r");
   });
+
+  it("keeps a byte-order mark first, even with a comment above line 1", async () => {
+    const bom = String.fromCharCode(0xfeff);
+    const { run } = setup(
+      commentPlanReply({ insertions: [above(1, "Adds up the items.")] }),
+    );
+
+    const result = await run({ path: "cart.toy", code: bom + cartCode });
+
+    expect(result.outputCode.startsWith(`${bom}# Adds up the items.\n`)).toBe(
+      true,
+    );
+    expect(result.outputCode.indexOf(bom, 1)).toBe(-1);
+    expect(result.diff).not.toContain(bom);
+  });
 });

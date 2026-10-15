@@ -13,7 +13,7 @@ export interface InsertionResult {
 // Everything a JavaScript or C# compiler treats as a line break (C# also ends
 // a line at U+0085); a comment line must not contain any, or the rest of the
 // text would become code.
-const LINE_BREAKS = /\r\n|[\n\r\u0085\u2028\u2029]/;
+export const LINE_BREAKS = /\r\n|[\n\r\u0085\u2028\u2029]/;
 
 export function applyInsertions(
   code: string,
@@ -108,19 +108,38 @@ function buildLineMap(
   return lineMap;
 }
 
-function toCommentLines(
+// Control characters (except tab) could hide text or rewrite the terminal
+// when a preview is shown, so they never reach a comment.
+// eslint-disable-next-line no-control-regex -- matching control characters is the point
+const CONTROL_CHARACTERS = /[\u0000-\u0008\u000b-\u001f\u007f]/g;
+
+/** Turns AI-written text into comment lines with the given marker and indent. */
+export function toCommentLines(
   text: string,
   indent: string,
   lineComment: string,
 ): string[] {
   return text
     .split(LINE_BREAKS)
-    .map((line) => withoutCommentMarker(line.trim(), lineComment))
+    .map((line) => withoutCommentMarker(cleanCommentText(line), lineComment))
     .map((line) =>
       line === ""
         ? `${indent}${lineComment}`
         : `${indent}${lineComment} ${line}`,
     );
+}
+
+/**
+ * Removes control characters and trailing backslashes: in C and C++ a
+ * backslash at the end of a comment line continues the comment onto the
+ * next line, which would turn that line of code into a comment.
+ */
+export function cleanCommentText(text: string): string {
+  return text
+    .replace(CONTROL_CHARACTERS, "")
+    .trim()
+    .replace(/\\+$/, "")
+    .trimEnd();
 }
 
 /** Drops a marker the AI included despite instructions, avoiding "# # text". */
