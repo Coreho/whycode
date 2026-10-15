@@ -21,7 +21,20 @@ export interface TokenRules {
    * Python's backslash line continuation. A comment there becomes a token.
    */
   commentSensitiveTypes?: ReadonlySet<string>;
+  /**
+   * Bracketed lists whose trailing comma (one right before the closing
+   * bracket) can't change meaning, keyed by node type. Formatters add these
+   * commas when they split a list over several lines, so they are left out
+   * of the token stream. "with-several-items" applies only when the list has
+   * another comma too: in Python, (x,) is a tuple but (x) is not.
+   */
+  optionalTrailingCommas?: ReadonlyMap<string, TrailingCommaRule>;
 }
+
+export type TrailingCommaRule = "always" | "with-several-items";
+
+const OPENING_BRACKETS = new Set(["(", "[", "{", "<"]);
+const CLOSING_BRACKETS = new Set([")", "]", "}", ">"]);
 
 // Marker tokens. They can't collide with real tokens, which never contain "<<".
 export const SYNTAX_ERROR_TOKEN = "<<syntax-error>>";
@@ -53,8 +66,9 @@ function grammarPath(grammar: GrammarSpec): string {
 }
 
 /**
- * Every token of the code except comments, in source order. Whitespace
- * between tokens is ignored; whitespace inside tokens (such as strings) is kept.
+ * Every token of the code except comments and optional trailing commas, in
+ * source order. Whitespace between tokens is ignored; whitespace inside
+ * tokens (such as strings) is kept.
  * Syntax errors appear as marker tokens, so new breakage changes the stream.
  */
 export async function treeSitterTokens(
@@ -119,7 +133,7 @@ function collectTokens(
 
     emitUncoveredText(node.startIndex);
     const text = code.slice(node.startIndex, node.endIndex);
-    if (text !== "") tokens.push(text);
+    if (text !== "" && !isOptionalTrailingComma(node, rules)) tokens.push(text);
     coveredUntil = node.endIndex;
     previousLeafType = node.type;
     return false;
@@ -139,4 +153,40 @@ function collectTokens(
   }
   emitUncoveredText(code.length);
   return tokens;
+}
+
+/**
+ * True for a "," that follows a list item and directly precedes the list's
+ * closing bracket, in a list where the language's rules say such a comma
+ * can't change meaning. A comma after "(" or another "," is not trailing:
+ * in JavaScript, [,] and [a,,] contain holes.
+ */
+function isOptionalTrailingComma(node: Node, rules: TokenRules): boolean {
+  if (node.type !== "," || node.parent === null) return false;
+  const rule = rules.optionalTrailingCommas?.get(node.parent.type);
+  if (rule === undefined) return false;
+  const before = siblingPastComments(node, "previous", rules);
+  const after = siblingPastComments(node, "next", rules);
+  if (before === null || after === null) return false;
+  if (before.type === "," || OPENING_BRACKETS.has(before.type)) return false;
+  if (!CLOSING_BRACKETS.has(after.type)) return false;
+  return rule === "always" || countCommas(node.parent) > 1;
+}
+
+function siblingPastComments(
+  node: Node,
+  direction: "previous" | "next",
+  rules: TokenRules,
+): Node | null {
+  const step = (from: Node) =>
+    direction === "next" ? from.nextSibling : from.previousSibling;
+  let sibling = step(node);
+  while (sibling !== null && rules.commentTypes.has(sibling.type)) {
+    sibling = step(sibling);
+  }
+  return sibling;
+}
+
+function countCommas(list: Node): number {
+  return list.children.filter((child) => child.type === ",").length;
 }

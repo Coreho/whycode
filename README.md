@@ -24,8 +24,9 @@ build plan.
   that every way a comment could change the code is caught or refused.
 - **Phase 5 (Claude provider and prompts): done.** The core can now get real
   comments from Claude through the API, with tuned prompts per comment level.
-- **Next: Phase 6,** the `whycode` CLI with interactive preview (and TASK-11,
-  the trailing-comma fix, before the CLI ships).
+- **Trailing-comma fix (TASK-11): done.** Comments next to arguments that
+  Ruff or Prettier splits over several lines are no longer thrown away.
+- **Next: Phase 6,** the `whycode` CLI with interactive preview.
 
 ## Supported languages
 
@@ -90,14 +91,25 @@ and returns a result. It never writes to disk.
 | Comment text containing newlines, `*/`, or code                      | Neutralized: every line becomes its own comment line                   |
 | Comment between JSX attributes or inside a JSX expression            | Kept: it's valid code and the tokens don't change                      |
 | A logic change slipping in (operator, identifier, removed statement) | Caught, and the warning names the first differing token                |
+| A comment makes the formatter split a list and add a trailing comma  | Kept: a trailing comma that can't change meaning isn't a token         |
+| A trailing comma that does change meaning, such as `(x)` to `(x,)`   | Caught                                                                 |
 
 Switching off the token comparison makes every "caught" test fail, so the
 suite really depends on it.
 
-Known limitation: when Ruff has placed a call's arguments together on one
-indented line, a comment above that line makes Ruff split them one per line
-and add a trailing comma. That counts as a token change, so those comments are
-discarded. Nothing unsafe is written, but the comments are lost.
+**Trailing commas.** Ruff often keeps a call's arguments together on one
+indented line. A comment next to that line makes Ruff split the arguments one
+per line and add a trailing comma, and Prettier does the same when it splits a
+list. Each adapter lists the places where a trailing comma can't change
+meaning, such as call arguments, parameters, lists, dicts, objects and
+imports. A comma there, directly before the closing bracket, is left out of
+the token stream, so adding or removing it isn't a logic change. Where a
+trailing comma does change meaning, it still counts. In Python, `(x,)` is a
+tuple but `(x)` isn't, `a[x,]` indexes by a tuple, and `case (x,):` matches a
+one-item sequence, so tuples, subscripts and tuple patterns only ignore the
+comma when they hold several items. In TSX, `<T,>` keeps its comma because
+without it `<T>` would start a JSX tag. A comma that marks a hole in a
+JavaScript array (`[a,,]`) always counts.
 
 Settings come from `.whycoderc.json` (strict JSON, no comments) at the repo root,
 overridden by command-line flags. Unknown keys are rejected so typos are caught.

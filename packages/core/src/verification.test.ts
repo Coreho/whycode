@@ -2,14 +2,17 @@
 // TypeScript adapters. Each case aims a comment (or a simulated logic change)
 // at a risky construct in the verification fixtures, then checks the result:
 // harmful changes are caught or refused, harmless ones are kept.
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import * as prettier from "prettier";
 import { describe, expect, it } from "vitest";
 import type { AIRequest } from "./ai/provider.js";
 import { resolveConfig } from "./config.js";
 import type { LanguageAdapter } from "./languages/adapter.js";
 import { findAdapterForPath } from "./languages/adapter.js";
 import { defaultAdapters } from "./languages/index.js";
+import { typescriptAdapter } from "./languages/typescript.js";
 import type { FileResult } from "./pipeline.js";
 import { processFile } from "./pipeline.js";
 import { commentPlanReply, FakeAIProvider } from "./testing/fake-provider.js";
@@ -17,6 +20,7 @@ import { commentAboveFirstMatch } from "./testing/scripted-replies.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "..", "fixtures");
 const PROBE = "Probe comment.";
+const ruffInstalled = spawnSync("ruff", ["--version"]).error === undefined;
 
 interface FixtureCase {
   language: string;
@@ -80,6 +84,26 @@ function withLogicChange(
       if (mutated === result.code)
         throw new Error("Logic change did not apply.");
       return { ...result, code: mutated };
+    },
+  };
+}
+
+/**
+ * Wraps an adapter so its re-format (after comments are inserted) runs
+ * Prettier at a narrow width, forcing lists that fit before to split.
+ */
+function withNarrowReformat(adapter: LanguageAdapter): LanguageAdapter {
+  let formatCalls = 0;
+  return {
+    ...adapter,
+    async format(code, filePath) {
+      formatCalls += 1;
+      if (formatCalls === 1) return adapter.format(code, filePath);
+      const narrow = await prettier.format(code, {
+        parser: "typescript",
+        printWidth: 40,
+      });
+      return { code: narrow, formatted: true };
     },
   };
 }
@@ -181,6 +205,52 @@ describe("JSX: text is caught, code positions are kept", () => {
   });
 });
 
+describe("trailing commas a formatter adds when it splits a list are not logic changes", () => {
+  describe.skipIf(!ruffInstalled)("Ruff", () => {
+    it.each([
+      { place: "above", target: /^\s+first_argument_value, second_argument/ },
+      { place: "below", target: /^ {4}\)$/ },
+    ])(
+      "keeps a comment $place arguments Ruff had hugged on one line",
+      async ({ target }) => {
+        const result = await run(PYTHON, commentAboveFirstMatch(target, PROBE));
+        expect(result.verification).toBe("passed");
+        expect(result.outputCode).toContain(`# ${PROBE}`);
+        // Ruff really did split the arguments and add a trailing comma.
+        expect(result.outputCode).toContain("        scale,\n");
+        expect(await parsesCleanly(PYTHON, result.outputCode)).toBe(true);
+      },
+    );
+  });
+
+  // Whole-line comments rarely make Prettier split a list, since Prettier
+  // already gives each item its own line whenever a list breaks. So the
+  // re-format here runs at a narrower width to force the split.
+  it("keeps a comment when Prettier splits a call, an array and an object", async () => {
+    const code = [
+      "export const totals = summarize(firstValue, secondValue);",
+      "export const names = [firstName, secondName];",
+      "export const options = { retries: 3, timeout: 1000 };",
+      "",
+    ].join("\n");
+    const result = await processFile(
+      { path: "split.ts", code },
+      resolveConfig(),
+      {
+        provider: new FakeAIProvider(
+          commentAboveFirstMatch(/^export const totals/, PROBE),
+        ),
+        adapters: [withNarrowReformat(typescriptAdapter)],
+      },
+    );
+    expect(result.verification).toBe("passed");
+    expect(result.outputCode).toContain(`// ${PROBE}`);
+    for (const split of ["secondValue,\n);", "secondName,\n];", "1000,\n};"]) {
+      expect(result.outputCode).toContain(split);
+    }
+  });
+});
+
 describe("simulated logic changes are reported with the first differing token", () => {
   const harmlessComment = (fixture: FixtureCase) =>
     commentAboveFirstMatch(
@@ -213,6 +283,24 @@ describe("simulated logic changes are reported with the first differing token", 
       fixture: PYTHON,
       mutate: (code) => code.replace("    count = len(values)\n", ""),
       message: /expected "count", found "average"/,
+    },
+    {
+      change: "value turned into a one-item tuple",
+      fixture: PYTHON,
+      mutate: (code) => code.replace("[0] + 1)", "[0] + 1,)"),
+      message: /expected "\)", found ","/,
+    },
+    {
+      change: "index turned into a tuple index",
+      fixture: PYTHON,
+      mutate: (code) => code.replace("value[0]", "value[0,]"),
+      message: /expected "\]", found ","/,
+    },
+    {
+      change: "renamed argument beside a trailing comma",
+      fixture: PYTHON,
+      mutate: (code) => code.replace(/\bscale,?(\s*\n\s*\))/, "other_scale,$1"),
+      message: /expected "scale", found "other_scale"/,
     },
     {
       change: "changed operator",

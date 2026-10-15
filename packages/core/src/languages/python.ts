@@ -16,6 +16,25 @@ const PYTHON_TOKEN_RULES: TokenRules = {
   // A comment after "\" breaks the code: the continuation swallows the comment
   // line and the next line becomes a separate statement.
   commentSensitiveTypes: new Set(["line_continuation"]),
+  // Ruff adds a trailing comma when it splits a list one item per line.
+  // Where one item plus a comma means something else, the comma only counts
+  // as optional when there are several items: (x,) and a[x,] are tuples, and
+  // `case (x,):` matches a one-item sequence.
+  optionalTrailingCommas: new Map([
+    ["argument_list", "always"],
+    ["parameters", "always"],
+    ["type_parameter", "always"],
+    ["import_from_statement", "always"],
+    ["list", "always"],
+    ["set", "always"],
+    ["dictionary", "always"],
+    ["list_pattern", "always"],
+    ["dict_pattern", "always"],
+    ["class_pattern", "always"],
+    ["tuple", "with-several-items"],
+    ["tuple_pattern", "with-several-items"],
+    ["subscript", "with-several-items"],
+  ]),
 };
 
 export interface PythonAdapterOptions {

@@ -66,6 +66,58 @@ describe("treeSitterTokens", () => {
   });
 });
 
+describe("optional trailing commas", () => {
+  const COMMA_RULES: TokenRules = {
+    commentTypes: new Set(["comment"]),
+    optionalTrailingCommas: new Map([
+      ["arguments", "always"],
+      ["array", "always"],
+      ["formal_parameters", "with-several-items"],
+    ]),
+  };
+  const commaTokens = (code: string) =>
+    treeSitterTokens(code, JAVASCRIPT, COMMA_RULES);
+
+  it("leaves out a trailing comma in a list the rules name", async () => {
+    expect(await commaTokens("f(a, b,)")).toEqual(await commaTokens("f(a, b)"));
+  });
+
+  it("keeps trailing commas in lists the rules don't name", async () => {
+    expect(await tokens("f(a, b,)")).not.toEqual(await tokens("f(a, b)"));
+  });
+
+  it("looks past a comment between the comma and the closing bracket", async () => {
+    expect(await commaTokens("f(a, // last\n)")).toEqual(
+      await commaTokens("f(a)"),
+    );
+  });
+
+  it("drops a 'with-several-items' comma only when the list has another comma", async () => {
+    const twoItems = await commaTokens("function g(a, b,) {}");
+    expect(twoItems).toEqual(await commaTokens("function g(a, b) {}"));
+    const oneItem = await commaTokens("function g(a,) {}");
+    expect(oneItem).not.toEqual(await commaTokens("function g(a) {}"));
+  });
+
+  it.each([
+    ["a hole after the last item", "[a,,]", "[a,]"],
+    ["a lone hole", "[,]", "[]"],
+  ])(
+    "keeps a comma that marks %s, which changes the array's length",
+    async (_case, withHole, without) => {
+      expect(await commaTokens(withHole)).not.toEqual(
+        await commaTokens(without),
+      );
+    },
+  );
+
+  it("still notices any other token next to the comma", async () => {
+    expect(await commaTokens("f(a, c,)")).not.toEqual(
+      await commaTokens("f(a, b)"),
+    );
+  });
+});
+
 describe("loadGrammar", () => {
   it("loads each grammar only once", () => {
     expect(loadGrammar(JAVASCRIPT)).toBe(loadGrammar(JAVASCRIPT));

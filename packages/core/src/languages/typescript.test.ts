@@ -3,6 +3,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as prettier from "prettier";
 import { describe, expect, it } from "vitest";
 import { findAdapterForPath } from "./adapter.js";
 import { defaultAdapters } from "./index.js";
@@ -88,6 +89,33 @@ describe("script tokens", () => {
     const result = await javascriptAdapter.tokens("const a = <p>hi</p>;");
     expect(result).toContain("hi");
     expect(result.some((token) => token.startsWith("<<"))).toBe(false);
+  });
+
+  it.each([
+    ["a call", "f(firstValue, secondValue);"],
+    ["an array", "const a = [firstValue, secondValue];"],
+    ["an object", "const o = { first: firstValue, second: secondValue };"],
+    ["parameters", "function g(firstValue: number, secondValue: number) {}"],
+    ["imports", 'import { firstValue, secondValue } from "./values";'],
+  ])(
+    "ignores the trailing comma Prettier adds when it splits %s",
+    async (_list, code) => {
+      const split = await prettier.format(code, {
+        parser: "typescript",
+        printWidth: 20,
+      });
+      expect(split).toMatch(/,\n[)\]}]/);
+      expect(await typescriptAdapter.tokens(split)).toEqual(
+        await typescriptAdapter.tokens(code),
+      );
+    },
+  );
+
+  it("keeps the comma in a TSX generic arrow function's lone type parameter", async () => {
+    // Without it, <T> would start a JSX element.
+    expect(await tsxAdapter.tokens("const f = <T,>(x: T) => x;")).toContain(
+      ",",
+    );
   });
 });
 

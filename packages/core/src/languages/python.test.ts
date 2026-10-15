@@ -54,6 +54,55 @@ describe("python tokens", () => {
     expect(after).toContain(COMMENT_AFTER_CONTINUATION_TOKEN);
     expect(after).not.toEqual(before);
   });
+
+  it.each([
+    ["call arguments", "f(\n    a, b\n)\n", "f(\n    a,\n    b,\n)\n"],
+    [
+      "parameters",
+      "def f(\n    a, b\n): ...\n",
+      "def f(\n    a,\n    b,\n): ...\n",
+    ],
+    [
+      "a dict",
+      "d = {\n    1: a, 2: b\n}\n",
+      "d = {\n    1: a,\n    2: b,\n}\n",
+    ],
+    [
+      "imports",
+      "from m import (\n    a, b\n)\n",
+      "from m import (\n    a,\n    b,\n)\n",
+    ],
+    ["a two-item tuple", "t = (\n    a, b\n)\n", "t = (\n    a,\n    b,\n)\n"],
+    [
+      "a two-item subscript",
+      "v = m[\n    a, b\n]\n",
+      "v = m[\n    a,\n    b,\n]\n",
+    ],
+  ])(
+    "ignores the trailing comma Ruff adds when it splits %s",
+    async (_list, hugged, split) => {
+      expect(await pythonAdapter.tokens(split)).toEqual(
+        await pythonAdapter.tokens(hugged),
+      );
+    },
+  );
+
+  it.each([
+    ["a value into a one-item tuple", "y = (x)\n", "y = (x,)\n"],
+    ["an index into a tuple index", "y = a[b]\n", "y = a[b,]\n"],
+    [
+      "a capture pattern into a sequence pattern",
+      "match p:\n    case (a):\n        pass\n",
+      "match p:\n    case (a,):\n        pass\n",
+    ],
+  ])(
+    "notices a trailing comma that turns %s",
+    async (_change, before, after) => {
+      expect(await pythonAdapter.tokens(after)).not.toEqual(
+        await pythonAdapter.tokens(before),
+      );
+    },
+  );
 });
 
 describe("formatWithRuff", () => {

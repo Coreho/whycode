@@ -18,6 +18,24 @@ interface ScriptDialect {
 const SCRIPT_TOKEN_RULES: TokenRules = {
   // html_comment is the legacy "<!--" comment some JavaScript engines accept.
   commentTypes: new Set(["comment", "html_comment"]),
+  // Prettier adds a trailing comma when it splits a list one item per line.
+  // In TSX, <T,> marks a generic arrow function rather than a JSX tag, so a
+  // lone type parameter's comma still counts.
+  optionalTrailingCommas: new Map([
+    ["arguments", "always"],
+    ["formal_parameters", "always"],
+    ["array", "always"],
+    ["object", "always"],
+    ["array_pattern", "always"],
+    ["object_pattern", "always"],
+    ["named_imports", "always"],
+    ["export_clause", "always"],
+    ["enum_body", "always"],
+    ["object_type", "always"],
+    ["tuple_type", "always"],
+    ["type_arguments", "always"],
+    ["type_parameters", "with-several-items"],
+  ]),
 };
 
 function createScriptAdapter(dialect: ScriptDialect): LanguageAdapter {
