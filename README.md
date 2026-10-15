@@ -358,8 +358,10 @@ and returns a result. It never writes to disk.
 5. **Ask the AI for a comment plan.** Likely secrets are masked first. The AI
    returns JSON listing comments to insert and suggestions for existing
    comments; it never returns rewritten code. Providers that support it are
-   held to a JSON schema. An invalid reply gets one retry, then the file is
-   skipped.
+   held to a JSON schema. An invalid reply gets one retry that tells the model
+   what was wrong with it (the system prompt stays the same, so it is still
+   cached), then the file is skipped. Network and rate-limit errors are
+   retried by the SDK, not again here.
 6. **Insert comments** as new lines above their targets, then re-format.
    Existing lines are never edited. Comment text loses control characters and
    trailing backslashes, and every line break in it starts a new comment line.

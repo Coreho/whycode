@@ -528,7 +528,12 @@ async function requestCommentPlan(
   };
 }
 
-/** Calls the AI until a reply parses, giving it one retry after an invalid reply. */
+/**
+ * Calls the AI until a reply parses, giving it one retry after an invalid
+ * reply. The retry says what was wrong, so the model doesn't repeat the
+ * mistake. Provider errors aren't retried here: the SDK already retried
+ * rate limits and network failures.
+ */
 async function requestValidReply<Plan>(
   provider: AIProvider,
   request: AIRequest,
@@ -537,16 +542,33 @@ async function requestValidReply<Plan>(
   ) => { ok: true; plan: Plan } | { ok: false; error: string },
 ): Promise<{ ok: true; plan: Plan } | { ok: false; error: string }> {
   let lastError = "";
+  let current = request;
   for (let attempt = 1; attempt <= MAX_AI_ATTEMPTS; attempt++) {
-    const reply = await callProvider(provider, request);
+    const reply = await callProvider(provider, current);
     if (!reply.ok) return reply;
     const parsed = parse(reply.text);
     if (parsed.ok) return parsed;
     lastError = parsed.error;
+    current = retryRequest(request, parsed.error);
   }
   return {
     ok: false,
     error: `AI returned an invalid reply ${MAX_AI_ATTEMPTS} times. ${lastError}`,
+  };
+}
+
+/** Longest validation error quoted back to the model. */
+const MAX_RETRY_ERROR_CHARS = 1_000;
+
+/**
+ * The original request with the validation error added to the user message.
+ * The system prompt and schema stay identical, so the prompt cache still hits.
+ */
+function retryRequest(request: AIRequest, error: string): AIRequest {
+  const problem = error.slice(0, MAX_RETRY_ERROR_CHARS);
+  return {
+    ...request,
+    user: `${request.user}\n\nYour previous reply could not be used: ${problem}\nReply again with only the JSON object, in the required format.`,
   };
 }
 

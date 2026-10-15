@@ -116,6 +116,22 @@ describe("processFile: AI failures", () => {
     expect(provider.requests).toHaveLength(2);
   });
 
+  it("tells the model what was wrong on the retry, keeping the system prompt", async () => {
+    const { provider, run } = setup([
+      '{"insertions": [{"line": "two"}]}',
+      commentPlanReply({ insertions: [above(1, "Hi.")] }),
+    ]);
+    await run({ path: "cart.toy", code: cartCode });
+    const [first, retry] = provider.requests;
+    expect(retry?.system).toBe(first?.system);
+    expect(retry?.jsonSchema).toEqual(first?.jsonSchema);
+    expect(retry?.user.startsWith(first?.user ?? "?")).toBe(true);
+    expect(retry?.user).toMatch(
+      /Your previous reply could not be used: .*insertions/s,
+    );
+    expect(retry?.user).toMatch(/Reply again with only the JSON object/);
+  });
+
   it("skips the file after two invalid replies", async () => {
     const { provider, run } = setup("not json");
     const result = await run({ path: "cart.toy", code: cartCode });
