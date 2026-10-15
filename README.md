@@ -20,8 +20,9 @@ build plan.
   to finish offline, using a fake AI provider and a toy test language.
 - **Phase 3 (Python and TypeScript adapters): done.** Real languages now go
   through the pipeline, with tree-sitter tokens and real formatters.
-- **Next: Phase 4,** a thorough test suite proving verification catches logic
-  changes in real languages.
+- **Phase 4 (verification proof): done.** Tests with the real adapters show
+  that every way a comment could change the code is caught or refused.
+- **Next: Phase 5,** the Anthropic provider and tuned comment prompts.
 
 ## Supported languages
 
@@ -72,6 +73,28 @@ and returns a result. It never writes to disk.
 8. **Return** the new code (with the original line endings), a unified diff, the
    suggestions for existing comments, and any warnings.
 
+### What verification guarantees
+
+`src/verification.test.ts` runs the real Python and TypeScript adapters over
+`fixtures/*/verification.*`, a file per language full of risky constructs:
+
+| Risk                                                                 | What happens                                                           |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Comment lands inside a multi-line string or template literal         | Caught: the string's contents changed, so the AI changes are discarded |
+| Comment lands in JSX text                                            | Caught the same way                                                    |
+| Comment after a backslash line continuation                          | Refused before insertion, with a warning                               |
+| Comment text containing newlines, `*/`, or code                      | Neutralized: every line becomes its own comment line                   |
+| Comment between JSX attributes or inside a JSX expression            | Kept: it's valid code and the tokens don't change                      |
+| A logic change slipping in (operator, identifier, removed statement) | Caught, and the warning names the first differing token                |
+
+Switching off the token comparison makes every "caught" test fail, so the
+suite really depends on it.
+
+Known limitation: when Ruff has placed a call's arguments together on one
+indented line, a comment above that line makes Ruff split them one per line
+and add a trailing comma. That counts as a token change, so those comments are
+discarded. Nothing unsafe is written, but the comments are lost.
+
 Settings come from `.whycoderc.json` (strict JSON, no comments) at the repo root,
 overridden by command-line flags. Unknown keys are rejected so typos are caught.
 
@@ -80,9 +103,15 @@ implemented yet. Files are skipped with a clear reason.
 
 ### Testing helpers
 
-`@whycode/core/testing` exports `FakeAIProvider` (scripted replies, records
-every request) and `createToyAdapter` (a made-up `#`-comment language). Together
-they run the real pipeline in tests with no network and no formatters installed.
+`@whycode/core/testing` exports:
+
+- `FakeAIProvider`: scripted replies, and it records every request.
+- `createToyAdapter`: a made-up `#`-comment language.
+- `commentAboveFirstMatch` and `commentAboveEveryMatch`: scripted replies that
+  aim comments at lines matching a pattern, so tests don't hard-code line
+  numbers that move when the formatter runs.
+
+Together they run the real pipeline in tests with no network.
 
 ## Requirements
 

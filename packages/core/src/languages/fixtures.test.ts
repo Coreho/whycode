@@ -4,11 +4,14 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { CommentInsertion } from "../ai/comment-plan.js";
 import type { AIRequest } from "../ai/provider.js";
 import { resolveConfig } from "../config.js";
 import { processFile } from "../pipeline.js";
-import { commentPlanReply, FakeAIProvider } from "../testing/fake-provider.js";
+import { FakeAIProvider } from "../testing/fake-provider.js";
+import {
+  commentAboveEveryMatch,
+  commentAboveFirstMatch,
+} from "../testing/scripted-replies.js";
 import type { LanguageAdapter } from "./adapter.js";
 import { defaultAdapters } from "./index.js";
 import { createPythonAdapter } from "./python.js";
@@ -18,46 +21,12 @@ const COMMENT_TEXT = "Explains the next definition.";
 const DEFINITION =
   /^\s*(def |async def |class |export |function |module\.exports)/;
 
-interface NumberedLine {
-  number: number;
-  text: string;
-}
-
-/** The numbered code lines the pipeline sent to the AI ("12| text"). */
-function numberedLines(request: AIRequest): NumberedLine[] {
-  return request.user.split("\n").flatMap((line) => {
-    const match = /^(\d+)\| (.*)$/.exec(line);
-    return match ? [{ number: Number(match[1]), text: match[2] ?? "" }] : [];
-  });
-}
-
-const above = (line: number, text = COMMENT_TEXT): CommentInsertion => ({
-  line,
-  position: "above",
-  text,
-});
-
-/** Fake AI reply: one comment above every line that starts a definition. */
-function commentAboveDefinitions(request: AIRequest): string {
-  const insertions = numberedLines(request)
-    .filter((line) => DEFINITION.test(line.text))
-    .map((line) => above(line.number));
-  return commentPlanReply({ insertions });
-}
-
-/** Fake AI reply: one comment above the first line matching `pattern`. */
-function commentAboveLineMatching(pattern: RegExp) {
-  return (request: AIRequest): string => {
-    const target = numberedLines(request).find((line) =>
-      pattern.test(line.text),
-    );
-    if (target === undefined)
-      throw new Error(`No line matches ${String(pattern)}`);
-    return commentPlanReply({
-      insertions: [above(target.number, "Misplaced comment.")],
-    });
-  };
-}
+const commentAboveDefinitions = commentAboveEveryMatch(
+  DEFINITION,
+  COMMENT_TEXT,
+);
+const commentAboveLineMatching = (pattern: RegExp) =>
+  commentAboveFirstMatch(pattern, "Misplaced comment.");
 
 async function runFixture(
   relativePath: string,
