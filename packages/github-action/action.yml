@@ -1,0 +1,19 @@
+# Posts preview suggestions only; no write or post cleanup step runs.
+name: WhyCode
+description: Format and explain changed PR files with individually applicable review suggestions.
+inputs:
+  anthropic-api-key:
+    description: Anthropic key from a repository secret; alternatively use ANTHROPIC_API_KEY.
+    required: false
+  github-token:
+    description: Token with pull-requests write and contents read permissions.
+    default: ${{ github.token }}
+  comment-level:
+    description: Amount of explanation (light, medium, heavy); defaults to repository config, then light.
+    required: false
+  model:
+    description: Anthropic model; defaults to repository config.
+    required: false
+runs:
+  using: node24
+  main: dist/index.cjs
