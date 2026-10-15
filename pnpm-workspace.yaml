@@ -4,6 +4,9 @@ packages:
 # Tree-sitter grammar packages try to compile native Node bindings on install.
 # WhyCode only uses the .wasm files they ship, so their build scripts stay off.
 allowBuilds:
+  # esbuild's postinstall only verifies its platform binary, which the
+  # @esbuild/* optional dependency already provides.
+  esbuild: false
   tree-sitter-c-sharp: false
   tree-sitter-go: false
   tree-sitter-java: false

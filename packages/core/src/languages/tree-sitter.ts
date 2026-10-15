@@ -59,9 +59,18 @@ export function hasParseErrors(tokens: readonly string[]): boolean {
   );
 }
 
-const require = createRequire(import.meta.url);
 let runtimeReady: Promise<void> | undefined;
 const grammarCache = new Map<string, Promise<Language>>();
+let grammarDirectory: string | undefined;
+
+/**
+ * Front-ends that bundle the core ship every grammar's .wasm file in one
+ * folder instead of installing the grammar packages (whose install scripts
+ * try to compile native code), and say here where that folder is.
+ */
+export function useGrammarDirectory(directory: string): void {
+  grammarDirectory = directory;
+}
 
 /** Loads a grammar's WASM file, at most once per process. */
 export function loadGrammar(grammar: GrammarSpec): Promise<Language> {
@@ -76,8 +85,13 @@ export function loadGrammar(grammar: GrammarSpec): Promise<Language> {
 }
 
 // Grammar packages don't list their .wasm files in "exports", so find the
-// file next to the package's package.json.
+// file next to the package's package.json. The require function is made
+// here, not at load time, because a CommonJS bundle has no import.meta.url.
 function grammarPath(grammar: GrammarSpec): string {
+  if (grammarDirectory !== undefined) {
+    return join(grammarDirectory, grammar.wasmFile);
+  }
+  const require = createRequire(import.meta.url);
   const packageJson = require.resolve(`${grammar.packageName}/package.json`);
   return join(dirname(packageJson), grammar.wasmFile);
 }

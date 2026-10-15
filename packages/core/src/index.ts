@@ -71,6 +71,7 @@ export type {
 } from "./test-runner.js";
 
 export { findAdapterForPath } from "./languages/adapter.js";
+export { useGrammarDirectory } from "./languages/tree-sitter.js";
 export type { LanguageAdapter } from "./languages/adapter.js";
 export { defaultAdapters } from "./languages/index.js";
 export { createCSharpAdapter, csharpAdapter } from "./languages/csharp.js";

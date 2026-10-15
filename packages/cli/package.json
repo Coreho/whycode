@@ -1,8 +1,15 @@
 {
   "name": "whycode",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Cleans up AI-written code: formats it and adds comments that explain what it does and why.",
+  "keywords": [
+    "ai",
+    "claude",
+    "code-comments",
+    "formatter",
+    "code-review",
+    "cli"
+  ],
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -15,10 +22,21 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify-pack": "node scripts/verify-pack.mjs"
   },
   "dependencies": {
-    "@whycode/core": "workspace:*"
+    "@anthropic-ai/sdk": "^0.133.0",
+    "diff": "^9.0.0",
+    "ignore": "^7.0.12",
+    "picomatch": "^4.0.7",
+    "prettier": "^3.9.10",
+    "web-tree-sitter": "^0.27.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@whycode/core": "workspace:*",
+    "esbuild": "^0.28.2"
   }
 }

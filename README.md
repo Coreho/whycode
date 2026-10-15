@@ -11,8 +11,8 @@ Claude Code plugin, a VS Code extension, and a GitHub Action.
 
 ## Status
 
-Early development. `whycode check` and `whycode fix` work from a source
-checkout (see [Using the CLI](#using-the-cli)); nothing is on npm yet. See `CLAUDE.md` for
+Early development. The `whycode` CLI is complete and packaged for npm, but
+not published yet (see [Using the CLI](#using-the-cli)). See `CLAUDE.md` for
 the full build plan.
 
 - **Phase 1 (scaffold): done.** pnpm monorepo, strict TypeScript, ESLint,
@@ -39,7 +39,11 @@ the full build plan.
 - **Phase 6b (`whycode fix`): done.** Reviews each file's diff and writes
   only what you accept; suggested rewrites of existing comments are offered
   one at a time.
-- **Next: Phase 6c,** making the CLI publishable to npm.
+- **Phase 6c (npm package): done.** `packages/cli` packs as `whycode` with
+  the core bundled in and the grammars shipped inside, so installing it never
+  compiles anything. Phase 6 is complete.
+- **Next: Phases 8 to 10,** the Claude Code plugin, the VS Code extension and
+  the GitHub Action, then the docs (Phase 11).
 
 ## Supported languages
 
@@ -77,9 +81,11 @@ doc comment is caught. A comment between two `///` lines is fine, and an
 inserted comment can never become a doc comment for the same reason as above.
 
 Tokens come from [tree-sitter](https://tree-sitter.github.io/) grammars compiled
-to WebAssembly. They ship with the npm grammar packages, so nothing is downloaded
-at runtime and nothing needs compiling. pnpm is told not to build the grammars'
-native bindings (`allowBuilds` in `pnpm-workspace.yaml`).
+to WebAssembly. In the repository they come from the npm grammar packages, and
+pnpm is told not to build those packages' native bindings (`allowBuilds` in
+`pnpm-workspace.yaml`). The published CLI ships just the `.wasm` files and
+points the core at them with `useGrammarDirectory`, so installing it never
+runs the grammar packages' install scripts, which try to compile native code.
 
 Comments are never placed directly after a line ending in a backslash. That
 backslash continues the line, so in Python, for example, the comment would break
@@ -90,7 +96,9 @@ verification alone wouldn't notice.
 
 ## Using the CLI
 
-The CLI isn't published yet, so run it from a checkout after `pnpm build`:
+Once it is published, `npm install -g whycode` installs the `whycode` command
+(see [`packages/cli/README.md`](packages/cli/README.md), which is also the npm
+page). Until then, run it from a checkout after `pnpm build`:
 
 ```sh
 export ANTHROPIC_API_KEY=sk-ant-...             # or OPENROUTER_API_KEY with --provider openrouter
@@ -162,6 +170,16 @@ folder, or else the nearest folder with a `.whycoderc.json`. Within it:
 Skipped paths are listed by reason at the end of the output. File collection
 lives in the core (`collectFiles`), so the other front-ends will apply the
 same rules.
+
+**Packaging.** `pnpm build` bundles the CLI and the core into
+`packages/cli/dist/bin.js` with esbuild and copies the grammar `.wasm` files
+(and their MIT licenses) into `dist/grammars/`. The package installs only the
+core's pure-JavaScript dependencies; a test keeps that list in step with the
+core's. `pnpm --filter whycode verify-pack` packs the package, lists the
+tarball (only `dist/`, `README.md` and `LICENSE`), installs it globally into
+a throwaway folder and runs `whycode --version` and `--help`. Publish with
+`pnpm publish` from `packages/cli`, which turns the `workspace:*` dev
+dependency into a version number.
 
 ## How the core works
 
@@ -407,6 +425,9 @@ packages/
       testing/           # fake provider and toy adapter
     fixtures/            # messy AI-style sample code per language
   cli/                   # the `whycode` command: a thin wrapper over core
+    README.md, LICENSE   # the npm package's page and license
+    scripts/             # build.mjs (esbuild bundle + grammars),
+                         # verify-pack.mjs (pack, install, run)
     src/
       bin.ts             # the executable
       cli.ts             # argument dispatch, help, exit codes
