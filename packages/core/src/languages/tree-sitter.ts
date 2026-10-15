@@ -17,6 +17,13 @@ export interface TokenRules {
   /** Node types that are comments, and so are left out of the token stream. */
   commentTypes: ReadonlySet<string>;
   /**
+   * Child node types that mark a comment as documentation the compiler
+   * reads. Such a comment stays in the token stream as one token, so text
+   * inserted inside it is caught. Rust's doc comments become #[doc]
+   * attributes, and the code examples in them run as tests.
+   */
+  docCommentMarkers?: ReadonlySet<string>;
+  /**
    * Node types after which a comment changes what the code means, such as
    * Python's backslash line continuation. A comment there becomes a token.
    */
@@ -121,6 +128,9 @@ function collectTokens(
       if (rules.commentSensitiveTypes?.has(previousLeafType)) {
         tokens.push(COMMENT_AFTER_CONTINUATION_TOKEN);
       }
+      if (isDocComment(node, rules)) {
+        tokens.push(code.slice(node.startIndex, node.endIndex));
+      }
       coveredUntil = node.endIndex;
       return false;
     }
@@ -153,6 +163,12 @@ function collectTokens(
   }
   emitUncoveredText(code.length);
   return tokens;
+}
+
+function isDocComment(comment: Node, rules: TokenRules): boolean {
+  const markers = rules.docCommentMarkers;
+  if (markers === undefined) return false;
+  return comment.children.some((child) => markers.has(child.type));
 }
 
 /**

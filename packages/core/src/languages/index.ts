@@ -3,6 +3,7 @@
 import type { LanguageAdapter } from "./adapter.js";
 import { goAdapter } from "./go.js";
 import { pythonAdapter } from "./python.js";
+import { rustAdapter } from "./rust.js";
 import {
   javascriptAdapter,
   tsxAdapter,
@@ -12,6 +13,7 @@ import {
 export const defaultAdapters: readonly LanguageAdapter[] = [
   goAdapter,
   pythonAdapter,
+  rustAdapter,
   typescriptAdapter,
   tsxAdapter,
   javascriptAdapter,

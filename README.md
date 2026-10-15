@@ -28,22 +28,27 @@ build plan.
   Ruff or Prettier splits over several lines are no longer thrown away.
 - **Phase 7a (Go adapter): built,** ahead of Phase 6 so it could be built in
   parallel. One check is left: a run against a real gofmt, which isn't
-  installed on the development machine yet. C#, Java and Rust follow.
+  installed on the development machine yet.
+- **Phase 7b (Rust adapter): done,** also ahead of Phase 6. C# and Java
+  follow.
 - **Next: Phase 6,** the `whycode` CLI with interactive preview.
 
 ## Supported languages
 
-| Language   | Extensions                    | Formatter                                                           | Notes                                                                                       |
-| ---------- | ----------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Python     | `.py`, `.pyi`                 | [Ruff](https://docs.astral.sh/ruff/) (`ruff format`), found on PATH | Without Ruff, comments are still added and verified; formatting is skipped with a warning.  |
-| TypeScript | `.ts`, `.mts`, `.cts`         | Prettier (bundled)                                                  |                                                                                             |
-| TSX        | `.tsx`                        | Prettier (bundled)                                                  |                                                                                             |
-| JavaScript | `.js`, `.mjs`, `.cjs`, `.jsx` | Prettier (bundled)                                                  | JSX is supported in `.js` files.                                                            |
-| Go         | `.go`                         | `gofmt` (comes with Go), found on PATH                              | Without gofmt, comments are still added and verified; formatting is skipped with a warning. |
+| Language   | Extensions                    | Formatter                                                           | Notes                                                                                         |
+| ---------- | ----------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Python     | `.py`, `.pyi`                 | [Ruff](https://docs.astral.sh/ruff/) (`ruff format`), found on PATH | Without Ruff, comments are still added and verified; formatting is skipped with a warning.    |
+| TypeScript | `.ts`, `.mts`, `.cts`         | Prettier (bundled)                                                  |                                                                                               |
+| TSX        | `.tsx`                        | Prettier (bundled)                                                  |                                                                                               |
+| JavaScript | `.js`, `.mjs`, `.cjs`, `.jsx` | Prettier (bundled)                                                  | JSX is supported in `.js` files.                                                              |
+| Go         | `.go`                         | `gofmt` (comes with Go), found on PATH                              | Without gofmt, comments are still added and verified; formatting is skipped with a warning.   |
+| Rust       | `.rs`                         | `rustfmt`, found on PATH                                            | Without rustfmt, comments are still added and verified; formatting is skipped with a warning. |
 
 Formatters use the project's own settings: Prettier reads `.prettierrc` and
-`.editorconfig`, Ruff reads `pyproject.toml` or `ruff.toml`, both found from the
-file's location. gofmt has no settings.
+`.editorconfig`, Ruff reads `pyproject.toml` or `ruff.toml`, and rustfmt reads
+`rustfmt.toml` or `.rustfmt.toml`, all found from the file's location. rustfmt
+also gets the Rust edition from the nearest `Cargo.toml` (2021 if there is
+none). gofmt has no settings.
 
 **Go and cgo.** The comment block directly above `import "C"` is the cgo
 preamble: C code that cgo compiles. Its text counts as part of the token
@@ -51,6 +56,12 @@ stream, so a comment inserted inside it, or next to it where it would join the
 block, is caught. A comment separated from it by a blank line is fine.
 Inserted comments always start with `// ` (with a space), so they can never
 become a `//go:` directive.
+
+**Rust doc comments.** To the compiler, `///`, `//!`, `/** */` and `/*! */`
+are attributes, not comments, and the code examples in them run as tests. So
+each doc comment counts as one token, and a comment inserted inside a block
+doc comment is caught. A comment between two `///` lines is fine, and an
+inserted comment can never become a doc comment for the same reason as above.
 
 Tokens come from [tree-sitter](https://tree-sitter.github.io/) grammars compiled
 to WebAssembly. They ship with the npm grammar packages, so nothing is downloaded
@@ -75,7 +86,9 @@ and returns a result. It never writes to disk.
    - Anything else is skipped.
 3. **Format** with the language's formatter. If none is installed, WhyCode warns
    and carries on.
-4. **Record the token stream**, ignoring comments.
+4. **Record the token stream**, ignoring comments (except where a comment is
+   really code, such as Rust doc comments and Go's cgo preamble) and trailing
+   commas that can't change meaning.
 5. **Ask the AI for a comment plan.** Likely secrets are masked first. The AI
    returns JSON listing comments to insert and suggestions for existing
    comments; it never returns rewritten code. Providers that support it are
@@ -93,7 +106,8 @@ and returns a result. It never writes to disk.
 
 `src/verification.test.ts` runs the real Python and TypeScript adapters over
 `fixtures/*/verification.*`, a file per language full of risky constructs (Go
-has its own, `src/languages/go.verification.test.ts`):
+and Rust have their own, `src/languages/go.verification.test.ts` and
+`rust.verification.test.ts`):
 
 | Risk                                                                 | What happens                                                           |
 | -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -122,6 +136,11 @@ one-item sequence, so tuples, subscripts and tuple patterns only ignore the
 comma when they hold several items. In TSX, `<T,>` keeps its comma because
 without it `<T>` would start a JSX tag. A comma that marks a hole in a
 JavaScript array (`[a,,]`) always counts.
+
+**Line numbers.** Inserted comment lines move the code below them, just as
+reformatting does. Code that reads its own line numbers, such as Rust's
+`line!()`, Python's `inspect` module, or a stack trace, sees different
+numbers. The tokens don't change, so verification can't catch this.
 
 Settings come from `.whycoderc.json` (strict JSON, no comments) at the repo root,
 overridden by command-line flags. Unknown keys are rejected so typos are caught.
@@ -186,6 +205,9 @@ Together they run the real pipeline in tests with no network.
 - Optional: [Go](https://go.dev/dl/) on PATH for `gofmt`, to format Go files
   (`winget install GoLang.Go` on Windows). Without it, Go files still get
   comments and verification, and one gofmt test is skipped.
+- Optional: `rustfmt` on PATH, to format Rust files (`rustup component add
+rustfmt`). Without it, Rust files still get comments and verification, and
+  the rustfmt tests are skipped.
 
 ## Development
 
@@ -234,11 +256,12 @@ packages/
       verify.ts          # token-stream comparison
       privacy.ts         # sensitive-file check and secret masking
       text.ts            # line-ending helpers
-      process.ts         # runs external formatters (ruff, gofmt) with code on stdin
+      process.ts         # runs external formatters (ruff, gofmt, rustfmt)
       ai/                # providers (Anthropic, OpenRouter), schema, prompts
       comments/          # comment insertion
-      languages/         # adapters (python.ts, typescript.ts, go.ts), shared
-                         # tree-sitter tokens, comment-only fallback
+      languages/         # adapters (python.ts, typescript.ts, go.ts,
+                         # rust.ts), shared tree-sitter tokens,
+                         # comment-only fallback
       testing/           # fake provider and toy adapter
     fixtures/            # messy AI-style sample code per language
 ```

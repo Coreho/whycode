@@ -7,4 +7,5 @@ allowBuilds:
   tree-sitter-go: false
   tree-sitter-javascript: false
   tree-sitter-python: false
+  tree-sitter-rust: false
   tree-sitter-typescript: false

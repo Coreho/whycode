@@ -61,6 +61,8 @@ export { createGoAdapter, goAdapter } from "./languages/go.js";
 export type { GoAdapterOptions } from "./languages/go.js";
 export { createPythonAdapter, pythonAdapter } from "./languages/python.js";
 export type { PythonAdapterOptions } from "./languages/python.js";
+export { createRustAdapter, rustAdapter } from "./languages/rust.js";
+export type { RustAdapterOptions } from "./languages/rust.js";
 export {
   javascriptAdapter,
   tsxAdapter,
