@@ -3,6 +3,7 @@
 // one collected file.
 import type {
   AIProvider,
+  ChangeScope,
   CollectedFile,
   ConfigOverrides,
   FileResult,
@@ -13,6 +14,7 @@ import type {
 import {
   collectFiles,
   findProjectRoot,
+  listChangedFiles,
   loadConfig,
   processFile,
   readSourceFile,
@@ -35,6 +37,8 @@ export interface PreparedRun {
   files: CollectedFile[];
   /** Paths collection passed over, with the reason. */
   skips: Skip[];
+  /** With --staged: files that also have unstaged changes. */
+  partiallyStaged: ReadonlySet<string>;
 }
 
 /** Loads config and collects files, or prints why the run can't start. */
@@ -43,15 +47,20 @@ export async function prepareRun(
   overrides: ConfigOverrides,
   io: CliIo,
   deps: CommandDeps,
+  scope?: ChangeScope,
 ): Promise<PreparedRun | undefined> {
   const rootDir = await findProjectRoot(io.cwd);
   const config = await loadConfig(rootDir, overrides);
+  // With --staged or --diff, git says which files changed; only those count.
+  const changes =
+    scope === undefined ? undefined : await listChangedFiles(rootDir, scope);
   const collection = await collectFiles({
     rootDir,
     cwd: io.cwd,
     paths,
     config,
     adapters: deps.adapters,
+    changedOnly: changes?.paths,
   });
 
   // A mistyped path is an error, not a quiet skip: stop before any AI call.
@@ -69,7 +78,13 @@ export async function prepareRun(
     path,
     reason,
   }));
-  return { rootDir, config, files: collection.files, skips };
+  return {
+    rootDir,
+    config,
+    files: collection.files,
+    skips,
+    partiallyStaged: changes?.partiallyStaged ?? new Set(),
+  };
 }
 
 export type FileOutcome =

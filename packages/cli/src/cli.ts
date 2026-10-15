@@ -47,6 +47,10 @@ Options:
   --provider <name>           anthropic (default, needs ANTHROPIC_API_KEY) or
                               openrouter (needs OPENROUTER_API_KEY)
   --model <id>                Claude model to use (default: claude-sonnet-5-5)
+  --staged                    check/fix: only files staged in git
+  --diff <ref>                check/fix: only files changed since the branch left <ref>
+                              (committed, uncommitted and new), e.g. --diff origin/main.
+                              With either, paths are optional and narrow the changes.
   -y, --yes                   fix: apply every file's changes without asking. Existing
                               comments are still never edited. Not allowed with --refactor.
   --refactor                  fix: let the AI rewrite the code. Logic WILL change; asks
@@ -75,7 +79,7 @@ export async function runCli(
         io.stderr(`whycode: ${args.message}\n`);
         return EXIT_CODES.error;
       case "check":
-        return await runCheck(args.paths, args.overrides, io, deps);
+        return await runCheck(args.paths, args.overrides, io, deps, args.scope);
       case "fix":
         return await runFix(args.paths, args, io, deps);
       case "prompt":

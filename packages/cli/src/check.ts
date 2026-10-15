@@ -3,7 +3,7 @@
 // exit code is 1 when any file would change or had its comments discarded,
 // so CI can use it as a gate, and 2 when a file could not be processed (e.g.
 // the AI call failed), so a failure never passes.
-import type { ConfigOverrides } from "@whycode/core";
+import type { ChangeScope, ConfigOverrides } from "@whycode/core";
 import { fileVerdict } from "@whycode/core";
 import { forEachInOrder } from "./in-order.js";
 import type { CliIo } from "./io.js";
@@ -29,9 +29,16 @@ export async function runCheck(
   overrides: ConfigOverrides,
   io: CliIo,
   deps: CommandDeps,
+  scope?: ChangeScope,
 ): Promise<number> {
   // check only ever runs safe mode; refactor mode belongs to `fix --refactor`.
-  const run = await prepareRun(paths, { ...overrides, mode: "safe" }, io, deps);
+  const run = await prepareRun(
+    paths,
+    { ...overrides, mode: "safe" },
+    io,
+    deps,
+    scope,
+  );
   if (run === undefined) return EXIT_CODES.error;
 
   const report = new CheckReport(io, painter(io.color));

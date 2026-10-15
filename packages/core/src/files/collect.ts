@@ -26,6 +26,12 @@ export interface CollectOptions {
   /** Larger files are skipped. Defaults to 1 MB. */
   maxFileBytes?: number;
   /**
+   * Root-relative paths of changed files (see listChangedFiles). When given,
+   * only these files under the user's paths are collected, instead of
+   * walking directories; files in other languages are passed over quietly.
+   */
+  changedOnly?: readonly string[];
+  /**
    * The user's global git excludes file. Found through git by default; false
    * reads none (for tests).
    */
@@ -135,6 +141,13 @@ class Collector {
       return this.skip(relPath, "symlink");
     }
     if (isInsideGitDir(relPath)) return this.skip(relPath, "git-internal");
+    const changed = this.options.changedOnly;
+    if (changed !== undefined) {
+      for (const path of changed.filter((path) => isWithin(path, relPath))) {
+        await this.addChangedFile(path);
+      }
+      return;
+    }
     if (stats.isDirectory()) {
       const problem = await this.directoryProblem(relPath);
       return problem === undefined
@@ -142,6 +155,19 @@ class Collector {
         : this.skip(`${relPath}/`, problem);
     }
     if (stats.isFile()) await this.addFile(relPath, stats, true);
+  }
+
+  /** A changed file is treated like one found in a directory walk. */
+  private async addChangedFile(relPath: string): Promise<void> {
+    if (isInsideGitDir(relPath)) return;
+    if (!isSensitivePath(relPath) && !this.isSupported(relPath)) return;
+    const absolutePath = resolve(this.options.rootDir, relPath);
+    const stats = await lstatOrUndefined(absolutePath);
+    if (stats === undefined || !stats.isFile()) return;
+    if (await passesThroughLink(this.options.rootDir, absolutePath, relPath)) {
+      return this.skip(relPath, "symlink");
+    }
+    await this.addFile(relPath, stats, false);
   }
 
   private async walk(dir: string): Promise<void> {
@@ -247,6 +273,11 @@ function isOutside(fromRoot: string): boolean {
   return (
     fromRoot === ".." || fromRoot.startsWith(`..${sep}`) || isAbsolute(fromRoot)
   );
+}
+
+/** True if `path` is `dir` itself or inside it ("" is the root). */
+function isWithin(path: string, dir: string): boolean {
+  return dir === "" || path === dir || path.startsWith(`${dir}/`);
 }
 
 function isInsideGitDir(relPath: string): boolean {

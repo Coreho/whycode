@@ -110,6 +110,8 @@ export type {
   SkippedPath,
 } from "./files/collect.js";
 export { findProjectRoot } from "./files/project-root.js";
+export { GitChangesError, listChangedFiles } from "./files/git-changes.js";
+export type { ChangedFiles, ChangeScope } from "./files/git-changes.js";
 export { readSourceFile, writeSourceFile } from "./files/source-file.js";
 export type { SourceRead, SourceWrite } from "./files/source-file.js";
 export { applyCommentSuggestions } from "./comments/suggestions.js";

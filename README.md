@@ -50,6 +50,8 @@ npm install -g whycode          # once published; needs Node.js 22.12 or newer
 export ANTHROPIC_API_KEY=sk-ant-...
 
 whycode check src               # dry run: diffs and suggestions, writes nothing
+whycode check --diff origin/main # only files changed on this branch
+whycode fix --staged            # only files staged in git
 whycode fix src                 # review each file's diff, write what you accept
 whycode fix . --yes             # accept every file's changes without asking
 whycode fix app.py --refactor   # let the AI rewrite the code (logic will change)
@@ -77,15 +79,17 @@ its npm page.
     and your `testCommand` result with each diff, and can't be combined with
     `--yes`.
 
-| Flag                      | Effect                                    |
-| ------------------------- | ----------------------------------------- |
-| `--comment-level <level>` | `light` (default), `medium` or `heavy`    |
-| `--provider <name>`       | `anthropic` (default) or `openrouter`     |
-| `--model <id>`            | Claude model, default `claude-sonnet-5-5` |
-| `-y`, `--yes`             | `fix` only: accept every file's changes   |
-| `--refactor`              | `fix` only: let the AI rewrite the code   |
-| `-h`, `--help`            | Usage                                     |
-| `-v`, `--version`         | Version                                   |
+| Flag                      | Effect                                           |
+| ------------------------- | ------------------------------------------------ |
+| `--comment-level <level>` | `light` (default), `medium` or `heavy`           |
+| `--provider <name>`       | `anthropic` (default) or `openrouter`            |
+| `--model <id>`            | Claude model, default `claude-sonnet-5-5`        |
+| `--staged`                | Only files staged in git                         |
+| `--diff <ref>`            | Only files changed since the branch left `<ref>` |
+| `-y`, `--yes`             | `fix` only: accept every file's changes          |
+| `--refactor`              | `fix` only: let the AI rewrite the code          |
+| `-h`, `--help`            | Usage                                            |
+| `-v`, `--version`         | Version                                          |
 
 **Verdicts.** Every processed file gets a one-line verdict, worded the same in
 every front-end:
@@ -103,6 +107,15 @@ every front-end:
 Suggested rewrites of existing comments are counted after the verdict, and
 notes (such as discarded comments or a missing formatter) are always shown,
 even when there is no diff.
+
+**Changed files only.** `--staged` covers the files staged in git, and
+`--diff <ref>` the files changed since the branch left `<ref>` (found with
+`git merge-base`): committed, uncommitted and new untracked files, the way a
+pull request would show them. Deleted files are left out and renamed files are
+covered under their new name. Whole files are processed, not just the changed
+lines, and the usual collection rules still apply. With either flag the paths
+are optional and only narrow the changes. `fix --staged` refuses a file that
+also has unstaged edits, so they can never be overwritten.
 
 **Exit codes:** `check` exits 0 when every file is clean, and 1 when a file
 would change or had its comments discarded, so CI can use it as a gate.

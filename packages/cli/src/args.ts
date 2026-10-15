@@ -1,13 +1,24 @@
 // Parses the command line with Node's built-in parser and checks flag values
 // up front, so a typo fails before any file is read or any AI is called.
 import { parseArgs } from "node:util";
-import type { CommentLevel, ConfigOverrides } from "@whycode/core";
+import type { ChangeScope, CommentLevel, ConfigOverrides } from "@whycode/core";
 
 export type ParsedArgs =
   | { kind: "help" }
   | { kind: "version" }
-  | { kind: "check"; paths: string[]; overrides: ConfigOverrides }
-  | { kind: "fix"; paths: string[]; overrides: ConfigOverrides; yes: boolean }
+  | {
+      kind: "check";
+      paths: string[];
+      overrides: ConfigOverrides;
+      scope?: ChangeScope;
+    }
+  | {
+      kind: "fix";
+      paths: string[];
+      overrides: ConfigOverrides;
+      yes: boolean;
+      scope?: ChangeScope;
+    }
   | {
       kind: "prompt";
       paths: string[];
@@ -34,6 +45,8 @@ const OPTIONS = {
   fingerprint: { type: "string" },
   "accept-suggestions": { type: "string" },
   list: { type: "boolean" },
+  staged: { type: "boolean" },
+  diff: { type: "string" },
   help: { type: "boolean", short: "h" },
   version: { type: "boolean", short: "v" },
 } as const;
@@ -43,8 +56,16 @@ type FlagValues = ReturnType<typeof parseFlags>["values"];
 
 /** The flags each command accepts, besides --help and --version. */
 const COMMAND_FLAGS = {
-  check: ["comment-level", "provider", "model"],
-  fix: ["comment-level", "provider", "model", "yes", "refactor"],
+  check: ["comment-level", "provider", "model", "staged", "diff"],
+  fix: [
+    "comment-level",
+    "provider",
+    "model",
+    "yes",
+    "refactor",
+    "staged",
+    "diff",
+  ],
   prompt: ["comment-level", "list"],
   preview: ["plan"],
   write: ["plan", "fingerprint", "accept-suggestions"],
@@ -81,6 +102,10 @@ function parseCommand(
   if (stray !== undefined) {
     return usageError(`--${stray} doesn't apply to "whycode ${command}".`);
   }
+  const scope = parseScope(values);
+  if (typeof scope === "string") return usageError(scope);
+  // With --staged or --diff, the paths only narrow the changed files.
+  if (paths.length === 0 && scope !== undefined) paths.push(".");
   if (paths.length === 0) {
     return usageError(
       `"whycode ${command}" needs at least one file or directory, e.g. "whycode ${command} src" (or "." for the whole project).`,
@@ -91,7 +116,7 @@ function parseCommand(
   }
   const overrides = parseOverrides(values);
   if (typeof overrides === "string") return usageError(overrides);
-  if (command === "check") return { kind: "check", paths, overrides };
+  if (command === "check") return { kind: "check", paths, overrides, scope };
   if (command === "prompt") {
     return { kind: "prompt", paths, overrides, list: values.list === true };
   }
@@ -103,7 +128,21 @@ function parseCommand(
     );
   }
   if (values.refactor === true) overrides.mode = "refactor";
-  return { kind: "fix", paths, overrides, yes };
+  return { kind: "fix", paths, overrides, yes, scope };
+}
+
+/** --staged or --diff <ref>: which changed files to cover, if either is given. */
+function parseScope(values: FlagValues): ChangeScope | undefined | string {
+  if (values.staged === true && values.diff !== undefined) {
+    return "--staged and --diff can't be combined.";
+  }
+  if (values.staged === true) return { kind: "staged" };
+  if (values.diff === undefined) return undefined;
+  const ref = values.diff.trim();
+  if (ref === "" || ref.startsWith("-")) {
+    return "--diff needs a git ref, e.g. --diff origin/main.";
+  }
+  return { kind: "diff", ref };
 }
 
 /** `preview` and `write` handle one file and need the external model's plan. */

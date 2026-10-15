@@ -3,6 +3,7 @@
 // mode). Suggested rewrites of existing comments are offered one at a time
 // and never applied automatically, not even with --yes.
 import type {
+  ChangeScope,
   ConfigOverrides,
   ExistingCommentSuggestion,
   FileResult,
@@ -39,6 +40,8 @@ export interface FixOptions {
   overrides: ConfigOverrides;
   /** Accept every file's changes without asking; refused in refactor mode. */
   yes: boolean;
+  /** --staged or --diff: only the files git reports as changed. */
+  scope?: ChangeScope;
 }
 
 const NO_TERMINAL_MESSAGE = `whycode: nothing was written because there is no terminal to review the changes in.
@@ -52,8 +55,23 @@ export async function runFix(
   io: CliIo,
   deps: CommandDeps,
 ): Promise<number> {
-  const run = await prepareRun(paths, options.overrides, io, deps);
+  const run = await prepareRun(
+    paths,
+    options.overrides,
+    io,
+    deps,
+    options.scope,
+  );
   if (run === undefined) return EXIT_CODES.error;
+  // Writing a partially staged file would overwrite its unstaged edits.
+  for (const file of run.files.filter((f) => run.partiallyStaged.has(f.path))) {
+    run.skips.push({
+      path: file.path,
+      reason:
+        "has unstaged changes as well as staged ones; stage or stash them first",
+    });
+  }
+  run.files = run.files.filter((file) => !run.partiallyStaged.has(file.path));
   const refactor = run.config.mode === "refactor";
   if (refactor && options.yes) {
     io.stderr(
