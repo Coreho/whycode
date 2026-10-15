@@ -77,6 +77,8 @@ export { createCSharpAdapter, csharpAdapter } from "./languages/csharp.js";
 export type { CSharpAdapterOptions } from "./languages/csharp.js";
 export { createGoAdapter, goAdapter } from "./languages/go.js";
 export type { GoAdapterOptions } from "./languages/go.js";
+export { createJavaAdapter, javaAdapter } from "./languages/java.js";
+export type { JavaAdapterOptions } from "./languages/java.js";
 export { createPythonAdapter, pythonAdapter } from "./languages/python.js";
 export type { PythonAdapterOptions } from "./languages/python.js";
 export { createRustAdapter, rustAdapter } from "./languages/rust.js";

@@ -29,29 +29,33 @@ build plan.
 - **Phase 7a (Go adapter): done,** ahead of Phase 6 so it could be built in
   parallel.
 - **Phase 7b (Rust adapter): done,** also ahead of Phase 6.
-- **Phase 7c (C# adapter): done,** also ahead of Phase 6. Java follows.
+- **Phase 7c (C#) and 7d (Java) adapters: done,** also ahead of Phase 6. All
+  seven Tier 1 languages are now supported in the core.
 - **Refactor mode in the core (TASK-04): done.** The engine behind the CLI's
   `--refactor` flag.
 - **Next: Phase 6,** the `whycode` CLI with interactive preview.
 
 ## Supported languages
 
-| Language   | Extensions                    | Formatter                                                           | Notes                                                                                           |
-| ---------- | ----------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Python     | `.py`, `.pyi`                 | [Ruff](https://docs.astral.sh/ruff/) (`ruff format`), found on PATH | Without Ruff, comments are still added and verified; formatting is skipped with a warning.      |
-| TypeScript | `.ts`, `.mts`, `.cts`         | Prettier (bundled)                                                  |                                                                                                 |
-| TSX        | `.tsx`                        | Prettier (bundled)                                                  |                                                                                                 |
-| JavaScript | `.js`, `.mjs`, `.cjs`, `.jsx` | Prettier (bundled)                                                  | JSX is supported in `.js` files.                                                                |
-| Go         | `.go`                         | `gofmt` (comes with Go), found on PATH                              | Without gofmt, comments are still added and verified; formatting is skipped with a warning.     |
-| Rust       | `.rs`                         | `rustfmt`, found on PATH                                            | Without rustfmt, comments are still added and verified; formatting is skipped with a warning.   |
-| C#         | `.cs`                         | [CSharpier](https://csharpier.com/) (`csharpier`), found on PATH    | Without CSharpier, comments are still added and verified; formatting is skipped with a warning. |
+| Language   | Extensions                    | Formatter                                                                         | Notes                                                                                           |
+| ---------- | ----------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Python     | `.py`, `.pyi`                 | [Ruff](https://docs.astral.sh/ruff/) (`ruff format`), found on PATH               | Without Ruff, comments are still added and verified; formatting is skipped with a warning.      |
+| TypeScript | `.ts`, `.mts`, `.cts`         | Prettier (bundled)                                                                |                                                                                                 |
+| TSX        | `.tsx`                        | Prettier (bundled)                                                                |                                                                                                 |
+| JavaScript | `.js`, `.mjs`, `.cjs`, `.jsx` | Prettier (bundled)                                                                | JSX is supported in `.js` files.                                                                |
+| Go         | `.go`                         | `gofmt` (comes with Go), found on PATH                                            | Without gofmt, comments are still added and verified; formatting is skipped with a warning.     |
+| Rust       | `.rs`                         | `rustfmt`, found on PATH                                                          | Without rustfmt, comments are still added and verified; formatting is skipped with a warning.   |
+| C#         | `.cs`                         | [CSharpier](https://csharpier.com/) (`csharpier`), found on PATH                  | Without CSharpier, comments are still added and verified; formatting is skipped with a warning. |
+| Java       | `.java`                       | [google-java-format](https://github.com/google/google-java-format), found on PATH | Without it, comments are still added and verified; formatting is skipped with a warning.        |
 
 Formatters use the project's own settings: Prettier reads `.prettierrc` and
 `.editorconfig`, Ruff reads `pyproject.toml` or `ruff.toml`, and rustfmt reads
 `rustfmt.toml` or `.rustfmt.toml`, and CSharpier reads `.csharpierrc*` and
 `.editorconfig`, all found from the file's location. rustfmt
 also gets the Rust edition from the nearest `Cargo.toml` (2021 if there is
-none). gofmt has no settings.
+none). gofmt and google-java-format have no settings. google-java-format runs
+in layout-only mode: it doesn't sort or remove imports, reorder modifiers,
+reflow long strings or rewrite Javadoc, since those change more than layout.
 
 **Go and cgo.** The comment block directly above `import "C"` is the cgo
 preamble: C code that cgo compiles. Its text counts as part of the token
@@ -112,7 +116,7 @@ and returns a result. It never writes to disk.
 
 `src/verification.test.ts` runs the real Python and TypeScript adapters over
 `fixtures/*/verification.*`, a file per language full of risky constructs (Go,
-Rust and C# have their own `src/languages/<lang>.verification.test.ts`):
+Rust, C# and Java have their own `src/languages/<lang>.verification.test.ts`):
 
 | Risk                                                                 | What happens                                                           |
 | -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -154,6 +158,12 @@ multi-line argument changes that string.
 **C# line breaks.** C# also ends a line at U+0085 (NEXT LINE), so inserted
 comment text is split there too, and the C# adapter's tokens expose any code
 hidden behind one.
+
+**Java unicode escapes.** javac turns `\uXXXX` escapes into characters before
+it reads anything, even inside comments, so `// note \u000a code` would run
+`code`. The Java adapter keeps the text of every comment that contains `\u` in
+the token stream, and also compares the code as javac decodes it, so a new
+escape in a comment fails verification.
 
 Settings come from `.whycoderc.json` (strict JSON, no comments) at the repo root,
 overridden by command-line flags. Unknown keys are rejected so typos are caught.
@@ -251,6 +261,10 @@ rustfmt`). Without it, Rust files still get comments and verification, and
 - Optional: CSharpier on PATH, to format C# files (`dotnet tool install -g
 csharpier`). Without it, C# files still get comments and verification, and
   the CSharpier tests are skipped.
+- Optional: google-java-format on PATH, to format Java files (the native
+  build from its GitHub releases, renamed to `google-java-format`). Without
+  it, Java files still get comments and verification, and its tests are
+  skipped.
 
 ## Development
 
@@ -304,7 +318,8 @@ packages/
       ai/                # providers (Anthropic, OpenRouter), schema, prompts
       comments/          # comment insertion
       languages/         # adapters (python.ts, typescript.ts, go.ts,
-                         # rust.ts, csharp.ts), shared tree-sitter tokens,
+                         # rust.ts, csharp.ts, java.ts), shared tree-sitter
+                         # tokens,
                          # comment-only fallback
       testing/           # fake provider and toy adapter
     fixtures/            # messy AI-style sample code per language
