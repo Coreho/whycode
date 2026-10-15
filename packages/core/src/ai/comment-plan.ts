@@ -67,7 +67,7 @@ export function parseCommentPlan(raw: string): CommentPlanParseResult {
 }
 
 /** Models sometimes wrap JSON in a Markdown fence (```json ... ```) despite instructions. */
-function stripCodeFence(raw: string): string {
+export function stripCodeFence(raw: string): string {
   const fenced = /^\s*```[\w-]*[ \t]*\r?\n([\s\S]*?)\r?\n?[ \t]*```\s*$/.exec(
     raw,
   );

@@ -300,15 +300,4 @@ describe("processFile: other behavior", () => {
     expect(/[^\r]\n/.test(result.outputCode)).toBe(false);
     expect(result.diff).not.toContain("\r");
   });
-
-  it("skips refactor mode, which is not implemented yet", async () => {
-    const { provider, run } = setup(commentPlanReply({}));
-    const result = await run(
-      { path: "cart.toy", code: cartCode },
-      resolveConfig({ mode: "refactor" }),
-    );
-    expect(result.status).toBe("skipped");
-    expect(result.skipReason).toMatch(/refactor mode/);
-    expect(provider.requests).toHaveLength(0);
-  });
 });

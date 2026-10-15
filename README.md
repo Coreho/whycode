@@ -30,6 +30,8 @@ build plan.
   parallel.
 - **Phase 7b (Rust adapter): done,** also ahead of Phase 6. C# and Java
   follow.
+- **Refactor mode in the core (TASK-04): done.** The engine behind the CLI's
+  `--refactor` flag.
 - **Next: Phase 6,** the `whycode` CLI with interactive preview.
 
 ## Supported languages
@@ -148,8 +150,35 @@ numbers. The tokens don't change, so verification can't catch this.
 Settings come from `.whycoderc.json` (strict JSON, no comments) at the repo root,
 overridden by command-line flags. Unknown keys are rejected so typos are caught.
 
-Refactor mode (`"mode": "refactor"`) is accepted by the config but not
-implemented yet. Files are skipped with a clear reason.
+### Refactor mode
+
+With `"mode": "refactor"`, the AI rewrites the whole file for readability
+instead of only adding comments. **Logic may change**, so every result has
+`changesLogic: true` and front-ends must show a warning and the diff before
+anything is saved.
+
+1. The file is formatted, then sent to the AI, which returns the rewritten
+   file and a list of what it changed (`refactorChanges`), including any bug
+   fixes.
+2. The rewrite must still be valid code: the formatter must accept it and
+   tree-sitter must parse it without errors. Otherwise the file is skipped.
+3. If `testCommand` is set and the front-end supplies a test runner, the
+   tests run against the rewrite and `testResult` reports pass or fail, the
+   exit code, and the end of the output.
+
+Some files are never sent in refactor mode:
+
+- **Languages without full support** (comments-only languages), because the
+  rewrite couldn't be checked to parse.
+- **Files with likely secrets.** Secrets are masked before any AI call, and
+  the masks can't be reliably put back into rewritten code.
+
+The pipeline never writes to disk, so running tests is up to the front-end.
+`createFileSwapTestRunner({ rootDir })` is the default runner. It writes the
+rewrite over the file, runs `testCommand` through the shell from `rootDir`,
+and always restores the original bytes afterwards, even when the tests fail.
+It runs one file at a time, and the command comes from `.whycoderc.json`, so
+only use refactor mode with a test command in repositories you trust.
 
 ### Using Claude
 
@@ -260,6 +289,7 @@ packages/
       privacy.ts         # sensitive-file check and secret masking
       text.ts            # line-ending helpers
       process.ts         # runs external formatters (ruff, gofmt, rustfmt)
+      test-runner.ts     # runs testCommand against a refactored file
       ai/                # providers (Anthropic, OpenRouter), schema, prompts
       comments/          # comment insertion
       languages/         # adapters (python.ts, typescript.ts, go.ts,

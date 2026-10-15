@@ -49,6 +49,16 @@ export const COMMENT_AFTER_CONTINUATION_TOKEN =
   "<<comment-after-line-continuation>>";
 const missingToken = (type: string) => `<<missing ${type}>>`;
 
+/** True if a token stream contains markers for code that doesn't parse cleanly. */
+export function hasParseErrors(tokens: readonly string[]): boolean {
+  return tokens.some(
+    (token) =>
+      token === SYNTAX_ERROR_TOKEN ||
+      token === COMMENT_AFTER_CONTINUATION_TOKEN ||
+      token.startsWith("<<missing "),
+  );
+}
+
 const require = createRequire(import.meta.url);
 let runtimeReady: Promise<void> | undefined;
 const grammarCache = new Map<string, Promise<Language>>();

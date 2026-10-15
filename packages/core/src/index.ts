@@ -52,7 +52,23 @@ export type {
   CommentPlanParseResult,
   ExistingCommentSuggestion,
 } from "./ai/comment-plan.js";
-export { buildCommentPrompt } from "./ai/prompts.js";
+export { buildCommentPrompt, buildRefactorPrompt } from "./ai/prompts.js";
+export {
+  parseRefactorPlan,
+  refactorPlanJsonSchema,
+  refactorPlanSchema,
+} from "./ai/refactor-plan.js";
+export type {
+  RefactorPlan,
+  RefactorPlanParseResult,
+} from "./ai/refactor-plan.js";
+export { createFileSwapTestRunner } from "./test-runner.js";
+export type {
+  FileSwapTestRunnerOptions,
+  TestOutcome,
+  TestRunner,
+  TestRunRequest,
+} from "./test-runner.js";
 
 export { findAdapterForPath } from "./languages/adapter.js";
 export type { LanguageAdapter } from "./languages/adapter.js";
