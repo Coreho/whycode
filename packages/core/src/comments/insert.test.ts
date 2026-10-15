@@ -76,6 +76,19 @@ describe("applyInsertions", () => {
     ]);
   });
 
+  it("refuses to place a comment right after a backslash line continuation", () => {
+    const code = "total = a + \\\n    b\nreturn total\n";
+    const result = applyInsertions(
+      code,
+      [above(2, "Bad."), above(3, "Good.")],
+      "#",
+    );
+    expect(result.code).toBe("total = a + \\\n    b\n# Good.\nreturn total\n");
+    expect(result.warnings).toEqual([
+      "Dropped a comment for line 2: the line before it ends with a backslash line continuation.",
+    ]);
+  });
+
   it("never changes existing lines", () => {
     const code = "  first\nsecond  \n\tthird";
     const result = applyInsertions(

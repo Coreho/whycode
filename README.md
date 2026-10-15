@@ -18,8 +18,32 @@ build plan.
   Prettier, Vitest.
 - **Phase 2 (core skeleton): done.** The `@whycode/core` pipeline runs from start
   to finish offline, using a fake AI provider and a toy test language.
-- **Next: Phase 3,** real Python and TypeScript adapters (tree-sitter tokens and
-  formatters).
+- **Phase 3 (Python and TypeScript adapters): done.** Real languages now go
+  through the pipeline, with tree-sitter tokens and real formatters.
+- **Next: Phase 4,** a thorough test suite proving verification catches logic
+  changes in real languages.
+
+## Supported languages
+
+| Language   | Extensions                    | Formatter                                                           | Notes                                                                                      |
+| ---------- | ----------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Python     | `.py`, `.pyi`                 | [Ruff](https://docs.astral.sh/ruff/) (`ruff format`), found on PATH | Without Ruff, comments are still added and verified; formatting is skipped with a warning. |
+| TypeScript | `.ts`, `.mts`, `.cts`         | Prettier (bundled)                                                  |                                                                                            |
+| TSX        | `.tsx`                        | Prettier (bundled)                                                  |                                                                                            |
+| JavaScript | `.js`, `.mjs`, `.cjs`, `.jsx` | Prettier (bundled)                                                  | JSX is supported in `.js` files.                                                           |
+
+Formatters use the project's own settings: Prettier reads `.prettierrc` and
+`.editorconfig`, Ruff reads `pyproject.toml` or `ruff.toml`, both found from the
+file's location.
+
+Tokens come from [tree-sitter](https://tree-sitter.github.io/) grammars compiled
+to WebAssembly. They ship with the npm grammar packages, so nothing is downloaded
+at runtime and nothing needs compiling. pnpm is told not to build the grammars'
+native bindings (`allowBuilds` in `pnpm-workspace.yaml`).
+
+Comments are never placed directly after a line ending in a backslash. That
+backslash continues the line, so in Python, for example, the comment would break
+the code.
 
 ## How the core works
 
@@ -42,8 +66,9 @@ and returns a result. It never writes to disk.
    then the file is skipped.
 6. **Insert comments** as new lines above their targets, then re-format.
    Existing lines are never edited.
-7. **Verify:** the token stream must exactly match step 4. If it doesn't, the AI
-   changes are thrown away and only the formatting is kept.
+7. **Verify:** the token stream must exactly match step 4. If it doesn't, or if
+   the formatter rejects the code once the comments are in, the AI changes are
+   thrown away and only the formatting is kept.
 8. **Return** the new code (with the original line endings), a unified diff, the
    suggestions for existing comments, and any warnings.
 
@@ -102,10 +127,13 @@ packages/
       verify.ts          # token-stream comparison
       privacy.ts         # sensitive-file check and secret masking
       text.ts            # line-ending helpers
+      process.ts         # runs external formatters (ruff) with code on stdin
       ai/                # provider interface, comment-plan schema, prompts
       comments/          # comment insertion
-      languages/         # adapter interface and comment-only fallback
+      languages/         # adapters (python.ts, typescript.ts), shared
+                         # tree-sitter tokens, comment-only fallback
       testing/           # fake provider and toy adapter
+    fixtures/            # messy AI-style sample code per language
 ```
 
 The CLI, Claude Code plugin, VS Code extension, and GitHub Action packages are

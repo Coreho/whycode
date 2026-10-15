@@ -23,15 +23,14 @@ export function applyInsertions(
   const lineCount = countLines(code);
   const warnings: string[] = [];
 
-  const inRange = insertions.filter((insertion) => {
-    if (insertion.line <= lineCount) return true;
-    warnings.push(
-      `Dropped a comment for line ${insertion.line}: the file has only ${lineCount} lines.`,
-    );
+  const placeable = insertions.filter((insertion) => {
+    const problem = placementProblem(insertion.line, lines, lineCount);
+    if (problem === undefined) return true;
+    warnings.push(`Dropped a comment for line ${insertion.line}: ${problem}.`);
     return false;
   });
 
-  const commentLinesByTarget = groupCommentLines(inRange, lines, lineComment);
+  const commentLinesByTarget = groupCommentLines(placeable, lines, lineComment);
   // Splice from the bottom up so earlier target line numbers stay valid.
   const targetsBottomUp = [...commentLinesByTarget.entries()].sort(
     ([a], [b]) => b - a,
@@ -45,6 +44,21 @@ export function applyInsertions(
     lineMap: buildLineMap(lineCount, commentLinesByTarget),
     warnings,
   };
+}
+
+/** Why a comment can't go above this 1-based line, or undefined if it can. */
+function placementProblem(
+  line: number,
+  lines: readonly string[],
+  lineCount: number,
+): string | undefined {
+  if (line > lineCount) return `the file has only ${lineCount} lines`;
+  // A trailing backslash continues the line (Python, shell, C macros, string
+  // literals), so a comment line placed after it would become part of the code.
+  if (lines[line - 2]?.endsWith("\\")) {
+    return "the line before it ends with a backslash line continuation";
+  }
+  return undefined;
 }
 
 /** Comment lines to insert above each target line, in the AI's order. */

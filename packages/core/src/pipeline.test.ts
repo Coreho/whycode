@@ -187,6 +187,27 @@ describe("processFile: verification", () => {
     ]);
   });
 
+  it("discards AI changes when the formatter rejects the code after insertion", async () => {
+    const rejectsCommentedCode = createToyAdapter({
+      corruptOnReformat: () => {
+        throw new Error("unexpected comment on line 1");
+      },
+    });
+    const { run } = setup(
+      commentPlanReply({ insertions: [above(1, "Hi.")] }),
+      rejectsCommentedCode,
+    );
+
+    const result = await run({ path: "cart.toy", code: cartCode });
+
+    expect(result.status).toBe("unchanged");
+    expect(result.verification).toBe("failed");
+    expect(result.outputCode).toBe(cartCode);
+    expect(result.warnings[0]).toMatch(
+      /discarded because the formatter rejected the code after they were inserted \(unexpected comment on line 1\)/,
+    );
+  });
+
   it("skips the file when the formatter throws", async () => {
     const brokenFormatter: LanguageAdapter = {
       ...createToyAdapter(),

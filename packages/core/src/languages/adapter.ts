@@ -11,8 +11,14 @@ export interface LanguageAdapter {
   lineComment: string;
   /** Optional docstring / JSDoc builder for summaries above definitions. */
   docComment?: (summary: string, indent: string) => string;
-  /** Formats code; `formatted` is false when the formatter isn't installed. */
-  format(code: string): Promise<{ code: string; formatted: boolean }>;
+  /**
+   * Formats code; `formatted` is false when the formatter isn't installed.
+   * `filePath` lets the formatter find the project's own settings.
+   */
+  format(
+    code: string,
+    filePath?: string,
+  ): Promise<{ code: string; formatted: boolean }>;
   /** Every token of the code except comments, in source order. */
   tokens(code: string): Promise<string[]>;
 }

@@ -133,7 +133,7 @@ async function runFullMode(
   const base = { languageId: adapter.id, mode: "full" as const };
 
   // Step 2: format. A missing formatter is a warning, not a failure.
-  const formatting = await adapter.format(job.code);
+  const formatting = await formatCode(adapter, job.code, job.input.path);
   if (!formatting.formatted) {
     warnings.push(
       `No formatter available for ${adapter.id}; formatting was skipped.`,
@@ -149,23 +149,10 @@ async function runFullMode(
   if (!plan.ok) return skippedResult(job.input, plan.error, base);
   warnings.push(...plan.warnings);
 
-  // Step 5: insert comments, then re-format.
-  const inserted = insertComments(
-    formattedCode,
-    plan.insertions,
-    adapter.lineComment,
-    warnings,
-  );
-  const reformatted = (await adapter.format(inserted.code)).code;
-
-  // Step 6: verify. On mismatch, keep the formatting but none of the AI's changes.
-  const comparison = compareTokenStreams(
-    tokensBefore,
-    await adapter.tokens(reformatted),
-  );
-  if (!comparison.equal) {
+  /** Throws away the inserted comments but keeps the formatting and suggestions. */
+  const keepFormattingOnly = (reason: string): FileResult => {
     warnings.push(
-      `AI comments were discarded because the code's tokens changed (${describeTokenMismatch(comparison)}). Only formatting was kept.`,
+      `AI comments were discarded because ${reason}. Only formatting was kept.`,
     );
     return buildResult(job, {
       ...base,
@@ -180,6 +167,35 @@ async function runFullMode(
       ),
       warnings,
     });
+  };
+
+  // Step 5: insert comments, then re-format. A formatter that now rejects
+  // the code means the comments broke it.
+  const inserted = insertComments(
+    formattedCode,
+    plan.insertions,
+    adapter.lineComment,
+    warnings,
+  );
+  let reformatted: string;
+  try {
+    reformatted = (await formatCode(adapter, inserted.code, job.input.path))
+      .code;
+  } catch (error) {
+    return keepFormattingOnly(
+      `the formatter rejected the code after they were inserted (${errorMessage(error)})`,
+    );
+  }
+
+  // Step 6: verify the token stream is unchanged.
+  const comparison = compareTokenStreams(
+    tokensBefore,
+    await adapter.tokens(reformatted),
+  );
+  if (!comparison.equal) {
+    return keepFormattingOnly(
+      `the code's tokens changed (${describeTokenMismatch(comparison)})`,
+    );
   }
 
   // Step 7: produce the result.
@@ -196,6 +212,16 @@ async function runFullMode(
     ),
     warnings,
   });
+}
+
+/** Runs the adapter's formatter and normalizes its output to LF line endings. */
+async function formatCode(
+  adapter: LanguageAdapter,
+  code: string,
+  filePath: string,
+): Promise<{ code: string; formatted: boolean }> {
+  const result = await adapter.format(code, filePath);
+  return { code: toLf(result.code), formatted: result.formatted };
 }
 
 async function runCommentsOnlyMode(

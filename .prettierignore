@@ -5,3 +5,5 @@ CLAUDE.md
 AGENTS.md
 # Written by the Backlog.md CLI, not by hand.
 backlog
+# Deliberately messy sample code that WhyCode is tested against.
+packages/core/fixtures

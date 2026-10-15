@@ -41,6 +41,15 @@ export { buildCommentPrompt } from "./ai/prompts.js";
 
 export { findAdapterForPath } from "./languages/adapter.js";
 export type { LanguageAdapter } from "./languages/adapter.js";
+export { defaultAdapters } from "./languages/index.js";
+export { createPythonAdapter, pythonAdapter } from "./languages/python.js";
+export type { PythonAdapterOptions } from "./languages/python.js";
+export {
+  javascriptAdapter,
+  tsxAdapter,
+  typescriptAdapter,
+} from "./languages/typescript.js";
+export type { ProcessResult, ProcessRunner } from "./process.js";
 
 export { createUnifiedDiff } from "./diff.js";
 export { compareTokenStreams, describeTokenMismatch } from "./verify.js";
