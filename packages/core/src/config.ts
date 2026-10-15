@@ -8,7 +8,7 @@ export const CONFIG_FILE_NAME = ".whycoderc.json";
 
 const commentLevelSchema = z.enum(["light", "medium", "heavy"]);
 const modeSchema = z.enum(["safe", "refactor"]);
-const providerNameSchema = z.enum(["anthropic", "host"]);
+const providerNameSchema = z.enum(["anthropic", "openrouter", "host"]);
 
 // strictObject rejects unknown keys, so typos like "commentlevel" are reported.
 export const configSchema = z.strictObject({

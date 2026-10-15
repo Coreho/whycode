@@ -1,5 +1,11 @@
 // Test doubles for WhyCode, published as "@whycode/core/testing" so every
 // front-end can run the real pipeline offline in its own tests.
+export {
+  claudeApiError,
+  createFakeClaudeClient,
+  textReply,
+} from "./fake-claude-client.js";
+export type { ClaudeReply, ClaudeRequestParams } from "./fake-claude-client.js";
 export { commentPlanReply, FakeAIProvider } from "./fake-provider.js";
 export type { FakeResponse } from "./fake-provider.js";
 export {

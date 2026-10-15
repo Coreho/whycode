@@ -30,8 +30,17 @@ export type {
 } from "./config.js";
 
 export type { AIProvider, AIRequest } from "./ai/provider.js";
-export { createAnthropicProvider, MissingApiKeyError } from "./ai/anthropic.js";
+export { createAnthropicProvider } from "./ai/anthropic.js";
 export type { AnthropicProviderOptions } from "./ai/anthropic.js";
+export { MissingApiKeyError } from "./ai/messages-api.js";
+export {
+  createOpenRouterProvider,
+  OPENROUTER_BASE_URL,
+  openRouterModelId,
+} from "./ai/openrouter.js";
+export type { OpenRouterProviderOptions } from "./ai/openrouter.js";
+export { createConfiguredProvider } from "./ai/providers.js";
+export type { ConfiguredProviderOptions } from "./ai/providers.js";
 export {
   commentPlanJsonSchema,
   commentPlanSchema,

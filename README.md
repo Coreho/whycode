@@ -107,20 +107,32 @@ implemented yet. Files are skipped with a clear reason.
 
 ### Using Claude
 
-`createAnthropicProvider({ model })` connects the pipeline to Claude through the
-Anthropic API. The model comes from config (`claude-sonnet-5-5` by default).
+`createConfiguredProvider(config)` returns the AI provider named by
+`"provider"` in config. The model comes from config (`claude-sonnet-5-5` by
+default).
 
-- **API key:** read only from `ANTHROPIC_API_KEY`. If it's missing, creating the
-  provider fails at once with a clear message, before any network call. The key
-  never appears in warnings, errors, or skip reasons.
+| `provider`            | Key (env var only)   | Sends code to                                                       |
+| --------------------- | -------------------- | ------------------------------------------------------------------- |
+| `anthropic` (default) | `ANTHROPIC_API_KEY`  | Anthropic                                                           |
+| `openrouter`          | `OPENROUTER_API_KEY` | OpenRouter, which passes it to Anthropic                            |
+| `host`                | none                 | the AI inside Claude Code or VS Code (supplied by those front-ends) |
+
+- **API key:** read only from that provider's variable. If it's missing,
+  creating the provider fails at once with a clear message, before any network
+  call. The key never appears in warnings, errors, or skip reasons.
+- **OpenRouter:** uses OpenRouter's Anthropic-compatible endpoint. Model IDs
+  are translated (`claude-sonnet-5-5` becomes `anthropic/claude-sonnet-5.5`),
+  and a model written as `vendor/name` is passed through as is. Anthropic's
+  refusal fallback isn't used, and running out of OpenRouter credits skips the
+  file with a clear reason.
 - **Structured output:** Claude's reply is constrained to the comment-plan JSON
   schema, and WhyCode still validates it.
 - **Prompts:** a system prompt per comment level (light, medium, heavy) asks for
   comments that explain why rather than restate the code, and warns against the
   placements verification rejects. It is identical for every file in a run, so
   it is cached.
-- **Refusals:** for models that support it (Sonnet 5.5, Opus 5/5.5, Fable
-  5/5.1), server-side refusal fallback is on. If Claude declines a file for a
+- **Refusals:** with the `anthropic` provider and a model that supports it
+  (Sonnet 5.5, Opus 5/5.5, Fable 5/5.1), server-side refusal fallback is on. If Claude declines a file for a
   safety reason, the API retries it on another model. A refusal that still
   stands skips the file with the reason.
 - **Failures:** a rejected key, rate limiting, a missing model, or a network
@@ -158,11 +170,13 @@ pnpm lint        # ESLint + Prettier check + type check (including tests)
 pnpm format      # rewrite files with Prettier
 ```
 
-The tests never call the Anthropic API, except one live smoke test that runs
-only when you opt in. It makes a real, billed request:
+The tests never call an AI service, except two live smoke tests (one per
+provider) that run only when you opt in with `WHYCODE_LIVE_TESTS=1` and the
+provider's key. Each makes a real, billed request:
 
 ```sh
 ANTHROPIC_API_KEY=sk-ant-... WHYCODE_LIVE_TESTS=1 pnpm test
+OPENROUTER_API_KEY=sk-or-... WHYCODE_LIVE_TESTS=1 pnpm test
 ```
 
 ### Task tracking
@@ -194,7 +208,7 @@ packages/
       privacy.ts         # sensitive-file check and secret masking
       text.ts            # line-ending helpers
       process.ts         # runs external formatters (ruff) with code on stdin
-      ai/                # provider interface, Claude provider, schema, prompts
+      ai/                # providers (Anthropic, OpenRouter), schema, prompts
       comments/          # comment insertion
       languages/         # adapters (python.ts, typescript.ts), shared
                          # tree-sitter tokens, comment-only fallback
