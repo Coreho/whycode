@@ -6,47 +6,270 @@ WhyCode cleans up AI-written code so humans can understand it. It fixes
 formatting and adds comments that explain **what** the code does and **why**,
 without changing program logic.
 
-It will ship as four front-ends sharing one core engine: a CLI (`whycode`), a
-Claude Code plugin, a VS Code extension, and a GitHub Action.
+It comes as four front-ends that share one core engine: a CLI (`whycode`), a
+Claude Code plugin, a VS Code extension and a GitHub Action.
 
 ## Status
 
-Early development. The `whycode` CLI is complete and packaged for npm, but
-not published yet (see [Using the CLI](#using-the-cli)). See `CLAUDE.md` for
-the full build plan.
+All eleven build phases in [`CLAUDE.md`](CLAUDE.md) are implemented and
+tested, but nothing is published yet:
 
-- **Phase 1 (scaffold): done.** pnpm monorepo, strict TypeScript, ESLint,
-  Prettier, Vitest.
-- **Phase 2 (core skeleton): done.** The `@whycode/core` pipeline runs from start
-  to finish offline, using a fake AI provider and a toy test language.
-- **Phase 3 (Python and TypeScript adapters): done.** Real languages now go
-  through the pipeline, with tree-sitter tokens and real formatters.
-- **Phase 4 (verification proof): done.** Tests with the real adapters show
-  that every way a comment could change the code is caught or refused.
-- **Phase 5 (Claude provider and prompts): done.** The core can now get real
-  comments from Claude through the API, with tuned prompts per comment level.
-- **Trailing-comma fix (TASK-11): done.** Comments next to arguments that
-  Ruff or Prettier splits over several lines are no longer thrown away.
-- **Phase 7a (Go adapter): done,** ahead of Phase 6 so it could be built in
-  parallel.
-- **Phase 7b (Rust adapter): done,** also ahead of Phase 6.
-- **Phase 7c (C#) and 7d (Java) adapters: done,** also ahead of Phase 6. All
-  seven Tier 1 languages are now supported in the core.
-- **Refactor mode in the core (TASK-04): done.** The engine behind the CLI's
-  `--refactor` flag.
-- **Phase 6a (`whycode check` and file collection): done.** The first
-  command you can run: a dry run that prints diffs and comment suggestions.
-- **Phase 6b (`whycode fix`): done.** Reviews each file's diff and writes
-  only what you accept; suggested rewrites of existing comments are offered
-  one at a time.
-- **Phase 6c (npm package): done.** `packages/cli` packs as `whycode` with
-  the core bundled in and the grammars shipped inside, so installing it never
-  compiles anything. Phase 6 is complete.
-- **Phase 8 (Claude Code plugin): done.** `/whycode:cleanup` cleans up code
-  with Claude Code's own model, no API key needed, through three new CLI
-  commands for agents (`prompt`, `preview`, `write`).
-- **In progress: Phases 9 and 10,** the VS Code extension and the GitHub
-  Action, built in parallel; then the docs (Phase 11).
+| Front-end          | State                                                             |
+| ------------------ | ----------------------------------------------------------------- |
+| CLI                | Packed and install-tested as the npm package `whycode`            |
+| Claude Code plugin | Validated, and run end to end in Claude Code from a checkout      |
+| VS Code extension  | Packaged as a `.vsix`; the Marketplace publisher is a placeholder |
+| GitHub Action      | Bundled and tested offline; needs a release with its `dist/`      |
+
+Tasks are tracked in [`backlog/`](#task-tracking).
+
+## What WhyCode promises
+
+- **Logic never changes in the default (safe) mode.** WhyCode records the
+  code's tokens before adding comments and compares them afterwards. If
+  anything but comments changed, the comments are thrown away and only the
+  formatting is kept.
+- **Existing comments are never edited automatically.** Improvements to them
+  are offered as separate suggestions, each accepted on its own, and a
+  suggestion can only change comment text.
+- **Nothing is written without a preview.** Every front-end shows the diff
+  first: an interactive prompt in the CLI, the diff view in VS Code, a diff in
+  Claude Code, and review suggestions on the pull request.
+- **Refactor mode is opt-in.** Only `whycode fix --refactor` lets the AI rewrite
+  code, with a warning, a confirmation and a review of every file.
+- **Private files stay private.** Files git ignores and files that may hold
+  secrets are never read, and likely secrets in the code that is sent are
+  masked. [PRIVACY.md](PRIVACY.md) has the details.
+
+## Front-ends
+
+### CLI
+
+```sh
+npm install -g whycode          # once published; needs Node.js 22.12 or newer
+export ANTHROPIC_API_KEY=sk-ant-...
+
+whycode check src               # dry run: diffs and suggestions, writes nothing
+whycode fix src                 # review each file's diff, write what you accept
+whycode fix . --yes             # accept every file's changes without asking
+whycode fix app.py --refactor   # let the AI rewrite the code (logic will change)
+```
+
+Until it is published, run `node packages/cli/dist/bin.js` from a checkout
+after `pnpm build`. The package's [README](packages/cli/README.md) doubles as
+its npm page.
+
+- **`check <paths...>`** prints a unified diff for each file that would change,
+  suggested rewrites of existing comments, notes (such as a missing formatter),
+  the paths it skipped and why, and a summary. It never writes. Up to four
+  files are sent to the AI at once, and results print in path order.
+- **`fix <paths...>`** shows each diff and asks `[y]es / [n]o / [s]kip /
+[q]uit`, then offers suggested rewrites of existing comments one at a time.
+  Only accepted files are written, with their original line endings, and a
+  file edited during the review is never overwritten. A summary lists the files
+  written, rejected, skipped, not reviewed, and those where verification failed
+  (so only formatting was offered).
+  - `--yes` accepts every file's changes without asking, but never applies
+    suggestions for existing comments: those always need a person.
+  - Without a terminal (in CI, or with piped input) and without `--yes`, `fix`
+    writes nothing and says why.
+  - `--refactor` warns, asks for confirmation, shows the AI's list of changes
+    and your `testCommand` result with each diff, and can't be combined with
+    `--yes`.
+
+| Flag                      | Effect                                    |
+| ------------------------- | ----------------------------------------- |
+| `--comment-level <level>` | `light` (default), `medium` or `heavy`    |
+| `--provider <name>`       | `anthropic` (default) or `openrouter`     |
+| `--model <id>`            | Claude model, default `claude-sonnet-5-5` |
+| `-y`, `--yes`             | `fix` only: accept every file's changes   |
+| `--refactor`              | `fix` only: let the AI rewrite the code   |
+| `-h`, `--help`            | Usage                                     |
+| `-v`, `--version`         | Version                                   |
+
+**Exit codes:** `check` exits 0 when nothing would change and 1 when a file
+would change, so CI can use it as a gate. `fix` exits 0 when it finishes,
+whatever you chose. Both exit 2 on errors: bad usage, an invalid config, a
+missing API key, a path that doesn't exist, or a file that couldn't be
+processed or written.
+
+### Claude Code plugin
+
+```
+/plugin marketplace add Coreho/whycode
+/plugin install whycode@whycode
+/whycode:cleanup src --comment-level medium
+```
+
+The plugin ([README](packages/claude-code-plugin/README.md)) uses Claude
+Code's own model, so no API key is needed; the `whycode` CLI must be on your
+PATH. For each file, Claude shows the diff WhyCode produced and asks whether to
+apply it, then asks about each suggested rewrite of an existing comment.
+
+Claude Code's model can't be called through an API, so the CLI has three
+commands that let any agent act as WhyCode's AI:
+
+- `whycode prompt <paths...>` prints exactly what WhyCode would send to a
+  model: the system prompt, the reply schema and each file's numbered code
+  (`--list` prints only which files would be processed). File collection and
+  secret masking work as usual, and no provider is ever created.
+- `whycode preview <file> --plan <file|->` runs the file through the normal
+  pipeline with the agent's JSON reply as the AI's answer: the same
+  validation, insertion, formatting and logic-unchanged check. It prints the
+  diff, the numbered suggestions and a fingerprint, and writes nothing.
+- `whycode write <file> --plan <file|-> --fingerprint <fp>
+[--accept-suggestions 1,3]` recomputes the result and writes it only if the
+  fingerprint matches, so what is written is exactly what the person saw.
+
+The pipeline is deterministic up to the AI call, which is what makes this
+work: the core's `captureCommentRequest` stops at the AI call and returns the
+request, and `processWithReply` runs the file again with the reply. The skill
+pre-approves only `whycode --version`, `whycode prompt` and `whycode preview`,
+so Claude Code asks your permission before every `whycode write`.
+
+### VS Code extension
+
+```sh
+pnpm build
+pnpm --filter whycode-vscode run package     # builds dist/whycode-vscode.vsix
+code --install-extension packages/vscode/dist/whycode-vscode.vsix
+```
+
+The extension ([README](packages/vscode/README.md)) needs VS Code 1.95 or
+newer.
+
+- **Commands:** _WhyCode: Clean Up Current File_ (Command Palette and editor
+  context menu) and _Clean Up with WhyCode_ (Explorer context menu, for several
+  selected files and folders), with a cancellable progress notification.
+- **Review:** each proposal opens in the diff view next to the file, and a
+  quick pick asks to Apply, Discard or Stop. Files with unsaved edits, or edited
+  during the review, are never overwritten. Suggested rewrites of existing
+  comments come in a multi-select list where nothing is ticked.
+- **AI:** with `whycode.provider` set to `auto`, a VS Code language model is
+  used when one is available (preferring Claude); otherwise the API key
+  provider, with the key from the environment VS Code started with. Keys are
+  never stored.
+- **Settings:** `whycode.commentLevel` and `whycode.provider`. Safe mode only;
+  untrusted workspaces aren't supported, because formatter config can run code.
+
+### GitHub Action
+
+The action ([README](packages/github-action/README.md)) runs on pull requests,
+processes only the files the PR changed, and posts one review whose
+`suggestion` blocks authors can apply one by one. It never pushes commits.
+
+```yaml
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  whycode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: YOUR_ORG/whycode@ACTION_RELEASE_SHA # a release that includes dist/
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          comment-level: light
+```
+
+The action's README has the full workflow, including skipping fork pull
+requests, which can't read repository secrets. GitHub only accepts suggestions
+on lines inside the PR's diff, so changes
+elsewhere (often formatting) are counted in the review summary instead. Files
+that fail verification or processing are listed there too, and get no
+suggestions. The key is masked in the logs.
+
+## Configuration
+
+Put a `.whycoderc.json` at the repository root. It is strict JSON (no
+comments), unknown keys are rejected so typos are caught, and command-line
+flags or editor settings override it.
+
+```json
+{
+  "commentLevel": "light",
+  "mode": "safe",
+  "include": ["src/**"],
+  "exclude": ["**/*.test.*", "dist/**"],
+  "provider": "anthropic",
+  "model": "claude-sonnet-5-5",
+  "testCommand": null
+}
+```
+
+| Key            | Default                          | Meaning                                                                                   |
+| -------------- | -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `commentLevel` | `"light"`                        | How much to comment; see [Comment levels](#comment-levels)                                |
+| `mode`         | `"safe"`                         | `"safe"` or `"refactor"`; see [Safe mode and refactor mode](#safe-mode-and-refactor-mode) |
+| `include`      | `["**/*"]`                       | Globs (relative to the root) a file must match to be processed                            |
+| `exclude`      | `["node_modules/**", "dist/**"]` | Globs that leave files out; folders a `/**` glob covers aren't even walked                |
+| `provider`     | `"anthropic"`                    | `"anthropic"` (`ANTHROPIC_API_KEY`) or `"openrouter"` (`OPENROUTER_API_KEY`)              |
+| `model`        | `"claude-sonnet-5-5"`            | Claude model ID                                                                           |
+| `testCommand`  | `null`                           | Shell command run against each rewritten file in `fix --refactor`                         |
+
+Keys come only from environment variables; there is no setting for one. The
+plugin, the extension and the action always run safe mode, and the action
+never runs `testCommand`.
+
+**Which files are read.** The project root is the git repository's top folder,
+or else the nearest folder with a `.whycoderc.json`. Within it:
+
+- Files and folders git ignores are never read: your global excludes file
+  (`core.excludesFile`, or `~/.config/git/ignore`), the repository's
+  `info/exclude` (also in worktrees), and every `.gitignore` from the root down,
+  deeper ones winning. A file inside an ignored folder stays ignored, as in
+  git. `.git` itself is never entered.
+- Files that may hold secrets (`.env*`, `*.pem`, `*.key`, SSH keys, `.npmrc`,
+  ...) are never read, even when named directly.
+- Folders contribute only files in languages WhyCode handles, so a README isn't
+  reported as skipped. A file you name directly is always reported.
+- Files over 1 MB, symbolic links (and paths through a linked folder), binary
+  files and files that aren't UTF-8 are skipped.
+
+File collection lives in the core (`collectFiles`), so every front-end applies
+the same rules, and skipped paths are always listed with the reason.
+
+## Comment levels
+
+| Level             | What you get                                                                              |
+| ----------------- | ----------------------------------------------------------------------------------------- |
+| `light` (default) | A summary above each function and class, plus comments only where the "why" isn't obvious |
+| `medium`          | Everything in `light`, plus a short note for each logical block inside functions          |
+| `heavy`           | Near line-by-line explanation, for people learning the language or the codebase           |
+
+At every level the prompts ask for comments that explain why rather than
+restate the code.
+
+## Safe mode and refactor mode
+
+**Safe mode** (the default, and the only mode outside the CLI) changes
+formatting and adds comments, nothing else. The token check described under
+[How it works](#how-it-works) proves it for every file; a file that fails the
+check keeps only its formatting.
+
+**Refactor mode** (`whycode fix --refactor`, or `"mode": "refactor"` with
+`whycode fix`) lets the AI rewrite the whole file for readability. **Logic may
+change**, so:
+
+1. The file is formatted and sent to the AI, which returns the rewritten file
+   and a list of what it changed, including any bug fixes.
+2. The rewrite must still be valid code: the formatter must accept it and
+   tree-sitter must parse it without errors. Otherwise the file is skipped.
+3. If `testCommand` is set, it runs against the rewrite: WhyCode puts the
+   rewritten file in place, runs the command from the project root, and always
+   restores the original bytes afterwards, even when the tests fail or you
+   press Ctrl+C (only a hard kill can leave the rewrite in place). Files are
+   then processed one at a time. The command comes from `.whycoderc.json`, so
+   only use it in repositories you trust.
+4. Every file is shown with a warning, the change list and the test result,
+   and needs your review; `--yes` is refused.
+
+Languages without full support, and files with likely secrets (whose masks
+can't be put back into rewritten code), are never sent in refactor mode.
 
 ## Supported languages
 
@@ -61,14 +284,19 @@ the full build plan.
 | C#         | `.cs`                         | [CSharpier](https://csharpier.com/) (`csharpier`), found on PATH                  | Without CSharpier, comments are still added and verified; formatting is skipped with a warning. |
 | Java       | `.java`                       | [google-java-format](https://github.com/google/google-java-format), found on PATH | Without it, comments are still added and verified; formatting is skipped with a warning.        |
 
+Ruby, shell, Perl, R, C, C++, PHP, Kotlin, Swift, Scala, Dart, SQL, Lua and
+Haskell get **comments only**: no formatting and no logic check, and every
+result says so. Suggestions for their existing comments are limited to whole
+comment lines.
+
 Formatters use the project's own settings: Prettier reads `.prettierrc` and
-`.editorconfig`, Ruff reads `pyproject.toml` or `ruff.toml`, and rustfmt reads
+`.editorconfig`, Ruff reads `pyproject.toml` or `ruff.toml`, rustfmt reads
 `rustfmt.toml` or `.rustfmt.toml`, and CSharpier reads `.csharpierrc*` and
-`.editorconfig`, all found from the file's location. rustfmt
-also gets the Rust edition from the nearest `Cargo.toml` (2021 if there is
-none). gofmt and google-java-format have no settings. google-java-format runs
-in layout-only mode: it doesn't sort or remove imports, reorder modifiers,
-reflow long strings or rewrite Javadoc, since those change more than layout.
+`.editorconfig`, all found from the file's location. rustfmt also gets the Rust
+edition from the nearest `Cargo.toml` (2021 if there is none). gofmt and
+google-java-format have no settings. google-java-format runs in layout-only
+mode: it doesn't sort or remove imports, reorder modifiers, reflow long strings
+or rewrite Javadoc, since those change more than layout.
 
 **Go and cgo.** The comment block directly above `import "C"` is the cgo
 preamble: C code that cgo compiles. Its text counts as part of the token
@@ -77,148 +305,19 @@ block, is caught. A comment separated from it by a blank line is fine.
 Inserted comments always start with `// ` (with a space), so they can never
 become a `//go:` directive.
 
-**Rust doc comments.** To the compiler, `///`, `//!`, `/** */` and `/*! */`
-are attributes, not comments, and the code examples in them run as tests. So
-each doc comment counts as one token, and a comment inserted inside a block
-doc comment is caught. A comment between two `///` lines is fine, and an
-inserted comment can never become a doc comment for the same reason as above.
+**Rust doc comments.** To the compiler, `///`, `//!`, `/** */` and `/*! */` are
+attributes, not comments, and the code examples in them run as tests. So each
+doc comment counts as one token, and a comment inserted inside a block doc
+comment is caught. A comment between two `///` lines is fine, and an inserted
+comment can never become a doc comment for the same reason as above.
 
-Tokens come from [tree-sitter](https://tree-sitter.github.io/) grammars compiled
-to WebAssembly. In the repository they come from the npm grammar packages, and
-pnpm is told not to build those packages' native bindings (`allowBuilds` in
-`pnpm-workspace.yaml`). The published CLI ships just the `.wasm` files and
-points the core at them with `useGrammarDirectory`, so installing it never
-runs the grammar packages' install scripts, which try to compile native code.
+**Placement rules.** Comments are never placed directly after a line ending in
+a backslash, which continues the line. Nor are they placed above a shebang
+(`#!`) on line 1, which only works there, or above an encoding declaration
+(`# -*- coding: latin-1 -*-`) on line 1 or 2, which Python only reads there.
+Both are comments to tree-sitter, so verification alone wouldn't notice.
 
-Comments are never placed directly after a line ending in a backslash. That
-backslash continues the line, so in Python, for example, the comment would break
-the code. Nor are they placed above a shebang (`#!`) on line 1, which only works
-there, or above an encoding declaration (`# -*- coding: latin-1 -*-`) on line 1
-or 2, which Python only reads there. Both are comments to tree-sitter, so
-verification alone wouldn't notice.
-
-## Using the CLI
-
-Once it is published, `npm install -g whycode` installs the `whycode` command
-(see [`packages/cli/README.md`](packages/cli/README.md), which is also the npm
-page). Until then, run it from a checkout after `pnpm build`:
-
-```sh
-export ANTHROPIC_API_KEY=sk-ant-...             # or OPENROUTER_API_KEY with --provider openrouter
-node packages/cli/dist/bin.js check src         # files and folders, any number
-node packages/cli/dist/bin.js check . --comment-level medium
-node packages/cli/dist/bin.js fix src           # review each file, write what you accept
-```
-
-`whycode check <paths...>` is a dry run. It prints a unified diff for each
-file that would change, suggested rewrites of existing comments, any notes
-(for example a missing formatter), the paths it skipped and why, and a
-summary. It never writes files. Up to four files are sent to the AI at once,
-and results are printed in path order.
-
-| Flag                      | Effect                                    |
-| ------------------------- | ----------------------------------------- |
-| `--comment-level <level>` | `light` (default), `medium` or `heavy`    |
-| `--provider <name>`       | `anthropic` (default) or `openrouter`     |
-| `--model <id>`            | Claude model, default `claude-sonnet-5-5` |
-| `-y`, `--yes`             | `fix` only: accept every file's changes   |
-| `--refactor`              | `fix` only: let the AI rewrite the code   |
-| `-h`, `--help`            | Usage                                     |
-| `-v`, `--version`         | Version                                   |
-
-`whycode fix <paths...>` is the only command that writes. For each file that
-would change it shows the diff and asks `[y]es / [n]o / [s]kip / [q]uit`;
-only files you accept are written, with their original line endings, and a
-file edited while you were reviewing is never overwritten. Suggested rewrites
-of existing comments then come one at a time, each applied only if you accept
-it and only if it changes nothing but comment text (Python docstrings and Rust
-doc comments count as code, so rewrites of those are refused). A summary at
-the end lists the files written, rejected, skipped, not reviewed, and those
-where verification failed (so only formatting was offered).
-
-- `--yes` accepts every file's changes without asking. It never applies
-  suggestions for existing comments: those always need a person.
-- Without a terminal (in CI, or with piped input) and without `--yes`, `fix`
-  writes nothing and says why.
-- `--refactor` (or `"mode": "refactor"` in `.whycoderc.json`) lets the AI
-  rewrite the code, so logic will change. `fix` warns and asks for
-  confirmation first, shows the AI's list of changes and the result of your
-  `testCommand` with each diff, and every file needs your review: `--yes` is
-  refused. `check` always runs in safe mode.
-
-Flags override `.whycoderc.json`.
-
-**Exit codes:** `check` exits 0 when nothing would change and 1 when a file
-would change, so CI can use it as a gate. `fix` exits 0 when it finishes,
-whatever you chose. Both exit 2 on errors: bad usage, an invalid config, a
-missing API key, a path that doesn't exist, or a file that couldn't be
-processed or written.
-
-**Which files are read.** The project root is the git repository's top
-folder, or else the nearest folder with a `.whycoderc.json`. Within it:
-
-- Files and folders ignored by git are never read: every `.gitignore` from the
-  root down (deeper ones win) plus `.git/info/exclude`. A file inside an
-  ignored folder stays ignored, as in git. `.git` itself is never entered.
-- Files that may hold secrets (`.env*`, `*.pem`, `*.key`, SSH keys, `.npmrc`,
-  ...) are never read, even when named on the command line.
-- `include` and `exclude` globs from `.whycoderc.json` are matched against
-  root-relative paths. Folders an `exclude` glob ending in `/**` covers (like
-  the default `node_modules/**` and `dist/**`) aren't walked at all.
-- Folders contribute only files in languages WhyCode handles, so a README
-  isn't reported as skipped. A file you name directly is always reported.
-- Files over 1 MB, symbolic links, binary files and files that aren't UTF-8
-  are skipped.
-
-Skipped paths are listed by reason at the end of the output. File collection
-lives in the core (`collectFiles`), so the other front-ends will apply the
-same rules.
-
-**Packaging.** `pnpm build` bundles the CLI and the core into
-`packages/cli/dist/bin.js` with esbuild and copies the grammar `.wasm` files
-(and their MIT licenses) into `dist/grammars/`. The package installs only the
-core's pure-JavaScript dependencies; a test keeps that list in step with the
-core's. `pnpm --filter whycode verify-pack` packs the package, lists the
-tarball (only `dist/`, `README.md` and `LICENSE`), installs it globally into
-a throwaway folder and runs `whycode --version` and `--help`. Publish with
-`pnpm publish` from `packages/cli`, which turns the `workspace:*` dev
-dependency into a version number.
-
-## Using the Claude Code plugin
-
-`packages/claude-code-plugin` adds a `/whycode:cleanup [paths] [--comment-level
-<level>]` skill to Claude Code (see its
-[README](packages/claude-code-plugin/README.md) to install it). Claude Code's
-own model writes the comments, so no API key is needed; the WhyCode CLI must be
-on your PATH.
-
-Claude Code's model can't be called through an API, so the CLI has three
-commands that let any agent act as WhyCode's AI:
-
-- `whycode prompt <paths...>` prints exactly what WhyCode would send to a
-  model: the system prompt, the reply schema and each file's numbered code
-  (`--list` prints only which files would be processed). File collection and
-  secret masking work as usual, and no provider is ever created.
-- `whycode preview <file> --plan <file|->` runs the file through the normal
-  pipeline with the agent's JSON reply as the AI's answer. That means the same
-  validation, insertion, formatting and logic-unchanged check. It prints the
-  diff, the numbered suggestions and a fingerprint, and writes nothing.
-- `whycode write <file> --plan <file|-> --fingerprint <fp>
-[--accept-suggestions 1,3]` recomputes the result and writes it only if the
-  fingerprint matches, so what is written is exactly what the person saw.
-
-The pipeline is deterministic up to the AI call, which is what makes this
-work: the core's `captureCommentRequest` stops at the AI call and returns the
-request, and `processWithReply` runs the file again with the reply.
-
-The skill tells Claude to show each diff, ask before writing, offer suggestions
-one at a time, and never read or edit the files itself. It pre-approves only
-`whycode --version`, `whycode prompt` and `whycode preview`, so Claude Code
-asks your permission before every `whycode write`. The repository root has a
-`.claude-plugin/marketplace.json`, so `/plugin marketplace add Coreho/whycode`
-finds it.
-
-## How the core works
+## How it works
 
 `processFile({ path, code }, config, { provider, adapters })` handles one file
 and returns a result. It never writes to disk.
@@ -227,8 +326,8 @@ and returns a result. It never writes to disk.
    skipped and never sent to an AI.
 2. **Detect language** from the file extension:
    - A language with an adapter gets the full pipeline.
-   - A known language without an adapter (Ruby, C, SQL, ...) gets comments only,
-     with no formatting and no verification, and the result is labeled that way.
+   - A known language without an adapter gets comments only, with no
+     formatting and no verification, and the result is labeled that way.
    - Anything else is skipped.
 3. **Format** with the language's formatter. If none is installed, WhyCode warns
    and carries on.
@@ -241,12 +340,14 @@ and returns a result. It never writes to disk.
    held to a JSON schema. An invalid reply gets one retry, then the file is
    skipped.
 6. **Insert comments** as new lines above their targets, then re-format.
-   Existing lines are never edited.
+   Existing lines are never edited. Comment text loses control characters and
+   trailing backslashes, and every line break in it starts a new comment line.
 7. **Verify:** the token stream must exactly match step 4. If it doesn't, or if
    the formatter rejects the code once the comments are in, the AI changes are
    thrown away and only the formatting is kept.
-8. **Return** the new code (with the original line endings), a unified diff, the
-   suggestions for existing comments, and any warnings.
+8. **Return** the new code (with the original line endings and byte-order
+   mark), a unified diff, the suggestions for existing comments, and any
+   warnings.
 
 ### What verification guarantees
 
@@ -269,158 +370,116 @@ Rust, C# and Java have their own `src/languages/<lang>.verification.test.ts`):
 Switching off the token comparison makes every "caught" test fail, so the
 suite really depends on it.
 
-**Trailing commas.** Ruff often keeps a call's arguments together on one
-indented line. A comment next to that line makes Ruff split the arguments one
-per line and add a trailing comma, and Prettier does the same when it splits a
-list. Each adapter lists the places where a trailing comma can't change
-meaning, such as call arguments, parameters, lists, dicts, objects and
-imports. A comma there, directly before the closing bracket, is left out of
-the token stream, so adding or removing it isn't a logic change. Where a
-trailing comma does change meaning, it still counts. In Python, `(x,)` is a
-tuple but `(x)` isn't, `a[x,]` indexes by a tuple, and `case (x,):` matches a
-one-item sequence, so tuples, subscripts and tuple patterns only ignore the
-comma when they hold several items. In TSX, `<T,>` keeps its comma because
-without it `<T>` would start a JSX tag. A comma that marks a hole in a
-JavaScript array (`[a,,]`) always counts.
+**Accepted suggestions** for existing comments go through the same check, and
+may only take one of three shapes: whole comment lines (rebuilt exactly like
+inserted comments), a line comment that ends a line of code (kept on one
+line), or one `/* block comment */` (which keeps its line breaks when it sits
+next to code, because in JavaScript a line break there can end a statement).
+Python docstrings and Rust doc comments are code, so rewrites of them are
+refused.
+
+**Trailing commas.** Ruff and Prettier split a list one item per line and add a
+trailing comma when a comment lands inside it. Each adapter lists the places
+where a trailing comma can't change meaning, such as call arguments,
+parameters, lists, dicts, objects and imports; a comma there, directly before
+the closing bracket, is left out of the token stream. Where it does change
+meaning it still counts: in Python `(x,)` is a tuple but `(x)` isn't, so tuples,
+subscripts and tuple patterns only ignore the comma when they hold several
+items; in TSX `<T,>` keeps its comma; a comma that marks a hole in a
+JavaScript array always counts.
 
 **Line numbers.** Inserted comment lines move the code below them, just as
 reformatting does. Code that reads its own line numbers, such as Rust's
 `line!()`, Python's `inspect` module, C#'s `[CallerLineNumber]`, or a stack
 trace, sees different numbers. The tokens don't change, so verification can't
-catch this. Likewise, C#'s `[CallerArgumentExpression]` captures an
-argument's source text, comments included, so a comment inserted inside a
-multi-line argument changes that string.
+catch this. Likewise, C#'s `[CallerArgumentExpression]` captures an argument's
+source text, comments included.
 
-**C# line breaks.** C# also ends a line at U+0085 (NEXT LINE), so inserted
-comment text is split there too, and the C# adapter's tokens expose any code
-hidden behind one.
+**C# and Java.** C# also ends a line at U+0085 (NEXT LINE), so comment text is
+split there too. javac turns `\uXXXX` escapes into characters even inside
+comments, so `// note \u000a code` would run `code`; the Java adapter keeps
+every comment that contains `\u` in the token stream and also compares the code
+as javac decodes it.
 
-**Java unicode escapes.** javac turns `\uXXXX` escapes into characters before
-it reads anything, even inside comments, so `// note \u000a code` would run
-`code`. The Java adapter keeps the text of every comment that contains `\u` in
-the token stream, and also compares the code as javac decodes it, so a new
-escape in a comment fails verification.
+### AI providers
 
-Settings come from `.whycoderc.json` (strict JSON, no comments) at the repo root,
-overridden by command-line flags. Unknown keys are rejected so typos are caught.
+`createConfiguredProvider(config)` returns the provider named in config.
 
-### Refactor mode
-
-With `"mode": "refactor"`, the AI rewrites the whole file for readability
-instead of only adding comments. **Logic may change**, so every result has
-`changesLogic: true` and front-ends must show a warning and the diff before
-anything is saved.
-
-1. The file is formatted, then sent to the AI, which returns the rewritten
-   file and a list of what it changed (`refactorChanges`), including any bug
-   fixes.
-2. The rewrite must still be valid code: the formatter must accept it and
-   tree-sitter must parse it without errors. Otherwise the file is skipped.
-3. If `testCommand` is set and the front-end supplies a test runner, the
-   tests run against the rewrite and `testResult` reports pass or fail, the
-   exit code, and the end of the output.
-
-Some files are never sent in refactor mode:
-
-- **Languages without full support** (comments-only languages), because the
-  rewrite couldn't be checked to parse.
-- **Files with likely secrets.** Secrets are masked before any AI call, and
-  the masks can't be reliably put back into rewritten code.
-
-The pipeline never writes to disk, so running tests is up to the front-end.
-`createFileSwapTestRunner({ rootDir })` is the default runner. It writes the
-rewrite over the file, runs `testCommand` through the shell from `rootDir`,
-and always restores the original bytes afterwards, even when the tests fail
-or you press Ctrl+C (only a hard kill can leave the rewrite in place).
-It runs one file at a time, and the command comes from `.whycoderc.json`, so
-only use refactor mode with a test command in repositories you trust.
-
-### Using Claude
-
-`createConfiguredProvider(config)` returns the AI provider named by
-`"provider"` in config. The model comes from config (`claude-sonnet-5-5` by
-default).
-
-| `provider`            | Key (env var only)   | Sends code to                                                       |
-| --------------------- | -------------------- | ------------------------------------------------------------------- |
-| `anthropic` (default) | `ANTHROPIC_API_KEY`  | Anthropic                                                           |
-| `openrouter`          | `OPENROUTER_API_KEY` | OpenRouter, which passes it to Anthropic                            |
-| `host`                | none                 | the AI inside Claude Code or VS Code (supplied by those front-ends) |
+| `provider`            | Key (env var only)   | Sends code to                                                              |
+| --------------------- | -------------------- | -------------------------------------------------------------------------- |
+| `anthropic` (default) | `ANTHROPIC_API_KEY`  | Anthropic                                                                  |
+| `openrouter`          | `OPENROUTER_API_KEY` | OpenRouter, which passes it to Anthropic                                   |
+| `host`                | none                 | The AI inside VS Code (supplied by the extension via `createHostProvider`) |
 
 - **API key:** read only from that provider's variable. If it's missing,
   creating the provider fails at once with a clear message, before any network
   call. The key never appears in warnings, errors, or skip reasons.
 - **OpenRouter:** uses OpenRouter's Anthropic-compatible endpoint. Model IDs
   are translated (`claude-sonnet-5-5` becomes `anthropic/claude-sonnet-5.5`),
-  and a model written as `vendor/name` is passed through as is. Anthropic's
-  refusal fallback isn't used, and running out of OpenRouter credits skips the
-  file with a clear reason.
+  and a model written as `vendor/name` is passed through as is.
+- **Host AI:** `createHostProvider(name, sendPrompt)` turns a host's "send one
+  prompt, get text back" chat model into a provider, folding the system prompt
+  and the JSON schema into the prompt. Replies are validated like any other.
 - **Structured output:** Claude's reply is constrained to the comment-plan JSON
   schema, and WhyCode still validates it.
-- **Prompts:** a system prompt per comment level (light, medium, heavy) asks for
-  comments that explain why rather than restate the code, and warns against the
-  placements verification rejects. It is identical for every file in a run, so
-  it is cached.
 - **Refusals:** with the `anthropic` provider and a model that supports it
-  (Sonnet 5.5, Opus 5/5.5, Fable 5/5.1), server-side refusal fallback is on. If Claude declines a file for a
-  safety reason, the API retries it on another model. A refusal that still
-  stands skips the file with the reason.
+  (Sonnet 5.5, Opus 5/5.5, Fable 5/5.1), server-side refusal fallback is on: if
+  Claude declines a file for a safety reason, the API retries it on another
+  model. A refusal that still stands skips the file with the reason.
 - **Failures:** a rejected key, rate limiting, a missing model, or a network
   problem skips that file with a readable reason instead of stopping the run.
   The SDK retries rate limits and network errors twice first.
 
-### Testing helpers
+## Privacy and license
 
-`@whycode/core/testing` exports:
+[PRIVACY.md](PRIVACY.md) says exactly what WhyCode sends to the AI provider,
+what it never reads, how secrets are masked (and the limits of that), and that
+it stores nothing.
 
-- `FakeAIProvider`: scripted replies, and it records every request.
-- `createToyAdapter`: a made-up `#`-comment language.
-- `commentAboveFirstMatch` and `commentAboveEveryMatch`: scripted replies that
-  aim comments at lines matching a pattern, so tests don't hard-code line
-  numbers that move when the formatter runs.
-
-Together they run the real pipeline in tests with no network.
-
-## Requirements
-
-- Node.js 22.12 or newer
-- pnpm 12 (`npm install -g pnpm`)
-- Optional: [Ruff](https://docs.astral.sh/ruff/) on PATH, to format Python
-  (`pip install ruff`, or `winget install astral-sh.ruff` on Windows). Without
-  it, Python files still get comments and verification, and the Ruff tests are
-  skipped.
-- Optional: [Go](https://go.dev/dl/) on PATH for `gofmt`, to format Go files
-  (`winget install GoLang.Go` on Windows). Without it, Go files still get
-  comments and verification, and one gofmt test is skipped.
-- Optional: `rustfmt` on PATH, to format Rust files (`rustup component add
-rustfmt`). Without it, Rust files still get comments and verification, and
-  the rustfmt tests are skipped.
-- Optional: CSharpier on PATH, to format C# files (`dotnet tool install -g
-csharpier`). Without it, C# files still get comments and verification, and
-  the CSharpier tests are skipped.
-- Optional: google-java-format on PATH, to format Java files (the native
-  build from its GitHub releases, renamed to `google-java-format`). Without
-  it, Java files still get comments and verification, and its tests are
-  skipped.
+MIT; see [LICENSE](LICENSE).
 
 ## Development
 
+Requirements: Node.js 22.12 or newer and pnpm 12 (`npm install -g pnpm`).
+Optional formatters on PATH enable their tests: Ruff, Go (`gofmt`), `rustfmt`,
+CSharpier (`dotnet tool install -g csharpier`) and google-java-format (the
+native build from its GitHub releases). Without them, those files still get
+comments and verification, and the formatter tests are skipped.
+
 ```sh
 pnpm install     # install dependencies
-pnpm build       # compile every package to dist/
+pnpm build       # build every package (bundles for cli, vscode, github-action)
 pnpm test        # run all tests with Vitest
 pnpm lint        # ESLint + Prettier check + type check (including tests)
 pnpm format      # rewrite files with Prettier
 ```
 
-The tests never call an AI service, except two live smoke tests (one per
-provider) that run only when you opt in with `WHYCODE_LIVE_TESTS=1` and the
-provider's key. Each makes a real, billed request:
+The tests never call an AI service, except two live smoke tests that run only
+when you opt in with `WHYCODE_LIVE_TESTS=1` and a key. Each makes a real,
+billed request:
 
 ```sh
 ANTHROPIC_API_KEY=sk-ant-... WHYCODE_LIVE_TESTS=1 pnpm test
 OPENROUTER_API_KEY=sk-or-... WHYCODE_LIVE_TESTS=1 pnpm test
 ```
+
+**Packaging.** Each front-end bundles the core with esbuild and ships the
+tree-sitter grammars as `.wasm` files (with their MIT licenses), pointing the
+core at them with `useGrammarDirectory`, so installing never runs the grammar
+packages' install scripts, which try to compile native code. In the repository
+the grammars come from the npm packages, and pnpm is told not to build their
+native bindings (`allowBuilds` in `pnpm-workspace.yaml`).
+
+- CLI: `pnpm --filter whycode verify-pack` packs the package, lists the tarball
+  (only `dist/`, `README.md` and `LICENSE`), installs it globally into a
+  throwaway folder and runs `whycode --version` and `--help`. Publish with
+  `pnpm publish` from `packages/cli`, which turns the `workspace:*` dev
+  dependency into a version.
+- VS Code: `pnpm --filter whycode-vscode run package` builds the `.vsix`; a
+  test loads the built bundle with `require()` and runs real clean-ups.
+- GitHub Action: `pnpm --filter @whycode/github-action verify-bundle` runs the
+  built bundle outside the workspace with fake GitHub and AI clients. A release
+  must commit the built `dist/`; see the action's README.
 
 ### Task tracking
 
@@ -430,7 +489,6 @@ Markdown files in `backlog/` (install the CLI with `npm install -g backlog.md`).
 ```sh
 backlog board            # Kanban board in the terminal
 backlog browser          # web UI on http://localhost:6420
-backlog task create "Title" -d "Description"
 backlog task list --plain
 ```
 
@@ -438,7 +496,7 @@ Use the `backlog` CLI rather than editing task files by hand. `CLAUDE.md` and
 `AGENTS.md` tell AI agents to do the same. Prettier skips `backlog/` and
 `AGENTS.md` because the CLI writes them.
 
-## Repository layout
+### Repository layout
 
 ```
 packages/
@@ -449,53 +507,41 @@ packages/
       diff.ts            # unified diffs for previews
       verify.ts          # token-stream comparison
       privacy.ts         # sensitive-file check and secret masking
+      line-suggestions.ts # changes as whole-line suggestions (GitHub Action)
       text.ts            # line-ending helpers
-      process.ts         # runs external formatters (ruff, gofmt, rustfmt)
+      process.ts         # runs external formatters
       test-runner.ts     # runs testCommand against a refactored file
-      ai/                # providers (Anthropic, OpenRouter), schema, prompts,
-                         # external-model.ts (an agent's model as the AI)
+      ai/                # providers (Anthropic, OpenRouter, host AI), schema,
+                         # prompts, external-model.ts (an agent's model as the AI)
       comments/          # comment insertion, applying accepted suggestions
-      files/             # file collection (.gitignore, globs), project
-                         # root, reading source files
-      languages/         # adapters (python.ts, typescript.ts, go.ts,
-                         # rust.ts, csharp.ts, java.ts), shared tree-sitter
-                         # tokens,
-                         # comment-only fallback
+      files/             # file collection (.gitignore, globs), project root,
+                         # reading and writing source files
+      languages/         # adapters (python, typescript, go, rust, csharp,
+                         # java), shared tree-sitter tokens, comments-only list
       testing/           # fake provider and toy adapter
     fixtures/            # messy AI-style sample code per language
-  cli/                   # the `whycode` command: a thin wrapper over core
-    README.md, LICENSE   # the npm package's page and license
-    scripts/             # build.mjs (esbuild bundle + grammars),
-                         # verify-pack.mjs (pack, install, run)
-    src/
-      bin.ts             # the executable
-      cli.ts             # argument dispatch, help, exit codes
-      args.ts            # flag parsing (node:util parseArgs)
-      run.ts             # steps shared by check and fix
-      check.ts           # `whycode check`
-      fix.ts             # `whycode fix`: review, write, suggestions
-      agent.ts           # `prompt`, `preview`, `write` for AI agents
-      report.ts          # terminal output: diffs, suggestions, skips
+  cli/                   # the `whycode` command (npm package "whycode")
+    scripts/             # build.mjs (bundle + grammars), verify-pack.mjs
+    src/                 # bin, cli (dispatch), args, run, check, fix,
+                         # agent (prompt/preview/write), report
   claude-code-plugin/    # Claude Code plugin: no code, drives the CLI
     .claude-plugin/plugin.json
     skills/cleanup/SKILL.md
+  vscode/                # VS Code extension ("whycode-vscode")
+    scripts/             # build.mjs (CommonJS bundle, wasm, licenses)
+    src/                 # extension, targets, projects, settings, ai,
+                         # clean-up, review, proposals, report
+  github-action/         # GitHub Action (action.yml)
+    scripts/             # build.mjs, verify-bundle.mjs
+    src/                 # main (GitHub edge), run, review
 .claude-plugin/
   marketplace.json       # lets Claude Code install the plugin from this repo
 ```
 
-The VS Code extension and GitHub Action packages are being added.
-
-## Toolchain notes
+### Toolchain notes
 
 - **TypeScript is pinned to 6.0.x.** TypeScript 7 is out, but
   `typescript-eslint` only supports TypeScript below 6.1 so far. Move to 7 once
   `typescript-eslint` adds support.
 - **Line endings are LF** everywhere (`.gitattributes`), so the Prettier check
   passes on Windows checkouts too.
-
-## Privacy and license
-
-[PRIVACY.md](PRIVACY.md) says exactly what WhyCode sends to the AI provider,
-what it never reads, how secrets are masked, and that it stores nothing.
-
-MIT; see [LICENSE](LICENSE).

@@ -45,12 +45,13 @@ Some cases differ:
 WhyCode picks the files it may read before it reads any of them. These files
 are never read, so they are never sent:
 
-- **Files git ignores**, according to every `.gitignore` from the project root
-  down (deeper files win) and `.git/info/exclude`. A file inside an ignored
+- **Files git ignores**, according to your global excludes file (git's
+  `core.excludesFile`, or `~/.config/git/ignore`), the repository's
+  `info/exclude` (also in worktrees and submodules), and every `.gitignore`
+  from the project root down (deeper files win). A file inside an ignored
   folder is ignored too. This holds even when you name the file on the command
-  line. Your global git ignore file (`core.excludesFile`) is not read, and
-  neither is `.git/info/exclude` in a git worktree or submodule, so keep rules
-  that protect secrets in the project's `.gitignore`.
+  line. Ignore files of repositories nested inside the project aren't read, so
+  keep rules that protect secrets in the project's own `.gitignore`.
 - **Files whose names suggest secrets**, in any folder and even when you name
   them directly (names are matched ignoring case):
   - `.env` and `.env.*`, such as `.env.local` and `.env.production`
@@ -195,10 +196,9 @@ work the same way. What differs is where the code goes:
 - When using the GitHub Action, code is sent from GitHub's runners to the
   provider, with the API key read from a repository secret. Its suggestions are
   posted as review comments on the pull request, where anyone who can see the
-  pull request can read them.
-
-The VS Code extension and the GitHub Action are still being built; this page
-will be updated when they ship.
+  pull request can read them. Every file the pull request changed is sent
+  (subject to the rules above), but suggestions are only posted for lines
+  inside the pull request's diff. The action never pushes commits.
 
 ## Questions
 
