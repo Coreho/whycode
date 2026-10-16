@@ -73,6 +73,19 @@ describe("applyInsertions", () => {
     expect(result.code).toBe("// one\n// Environment.Exit(1);\nx;");
   });
 
+  it("strips bidirectional controls that could make a comment read differently", () => {
+    // U+202E, U+2066 and U+2069: the characters behind "Trojan Source".
+    const hidden = [0x202e, 0x2066, 0x2069, 0x200f].map((code) =>
+      String.fromCharCode(code),
+    );
+    const result = applyInsertions(
+      "x;",
+      [above(1, `Checks ${hidden.join("")}the admin flag.`)],
+      "//",
+    );
+    expect(result.code).toBe("// Checks the admin flag.\nx;");
+  });
+
   it("strips a comment marker the AI included in the text", () => {
     const result = applyInsertions("x", [above(1, "# Already marked")], "#");
     expect(result.code).toBe("# Already marked\nx");

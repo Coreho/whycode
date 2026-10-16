@@ -144,11 +144,9 @@ function object(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function hash(value: unknown, length = 64): string {
-  if (
-    typeof value !== "string" ||
-    !new RegExp(`^[a-f0-9]{${length}}$`).test(value)
-  )
+/** A full SHA-256 digest in hex; anything else means the plan was altered. */
+function hash(value: unknown): string {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value))
     throw new Error("Invalid saved plan hash.");
   return value;
 }
@@ -178,7 +176,7 @@ export async function loadPlan(path: string): Promise<SavedPlan> {
       path,
       sourceHash: hash(item.sourceHash),
       requestHash: hash(item.requestHash),
-      fingerprint: hash(item.fingerprint, 16),
+      fingerprint: hash(item.fingerprint),
       reply: commentPlanSchema.parse(item.reply),
     };
   });

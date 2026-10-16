@@ -8,6 +8,7 @@ import {
   csharpierAdopted,
   googleJavaFormatAdopted,
   prettierAdopted,
+  prettierIgnoreFor,
   ruffAdopted,
 } from "./formatter-adoption.js";
 
@@ -89,6 +90,30 @@ describe("formatter adoption", () => {
     expect(await prettierAdopted(source("packages/a/a.js"))).toBe(true);
     expect(await prettierAdopted(source("nested/src/a.js"))).toBe(false);
     expect(await ruffAdopted(source("nested/src/a.py"))).toBe(false);
+  });
+
+  it("finds the .prettierignore that excludes a file, read relative to its folder", async () => {
+    await files({
+      ".git": "gitdir: somewhere",
+      ".prettierignore": "legacy.ts\n",
+      "pkg/.prettierignore": "generated/\n",
+    });
+    expect(await prettierIgnoreFor(source("src/legacy.ts"))).toBe(
+      join(project, ".prettierignore"),
+    );
+    expect(await prettierIgnoreFor(source("pkg/generated/a.ts"))).toBe(
+      join(project, "pkg", ".prettierignore"),
+    );
+    expect(await prettierIgnoreFor(source("generated/a.ts"))).toBeUndefined();
+    expect(await prettierIgnoreFor(source("src/main.ts"))).toBeUndefined();
+  });
+
+  it("ignores a .prettierignore outside the repository", async () => {
+    await files({
+      ".prettierignore": "*.ts\n",
+      "inner/.git": "gitdir: somewhere",
+    });
+    expect(await prettierIgnoreFor(source("inner/a.ts"))).toBeUndefined();
   });
 
   it("doesn't count a pyproject.toml without formatter settings", async () => {

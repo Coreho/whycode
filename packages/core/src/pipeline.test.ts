@@ -301,16 +301,27 @@ describe("processFile: privacy", () => {
 
 describe("processFile: when to format", () => {
   // The toy language with a formatter the project may or may not have adopted.
-  const toyWithFormatter = (adopted: boolean): LanguageAdapter => ({
+  const toyWithFormatter = (
+    adopted: boolean,
+    ignoreFile?: string,
+  ): LanguageAdapter => ({
     ...createToyAdapter(),
-    formatter: { name: "Toyfmt", isAdopted: () => Promise.resolve(adopted) },
+    formatter: {
+      name: "Toyfmt",
+      isAdopted: () => Promise.resolve(adopted),
+      ignoreFileFor: () => Promise.resolve(ignoreFile),
+    },
   });
   const messy = { path: "cart.toy", code: "start   \nstop\n" };
   const reply = commentPlanReply({ insertions: [above(2, "Shut down.")] });
 
-  async function runWith(adopted: boolean, format?: "always" | "never") {
+  async function runWith(
+    adopted: boolean,
+    format?: "always" | "never",
+    ignoreFile?: string,
+  ) {
     const provider = new FakeAIProvider(reply);
-    const adapters = [toyWithFormatter(adopted)];
+    const adapters = [toyWithFormatter(adopted, ignoreFile)];
     return processFile(messy, resolveConfig(format ? { format } : {}), {
       provider,
       adapters,
@@ -340,6 +351,16 @@ describe("processFile: when to format", () => {
     const never = await runWith(true, "never");
     expect(never.outputCode).toBe("start   \n# Shut down.\nstop\n");
     expect(never.warnings).toContain("Formatting was skipped, as configured.");
+  });
+
+  it("never formats a file the project's ignore file excludes, even with format: always", async () => {
+    for (const format of [undefined, "always" as const]) {
+      const result = await runWith(true, format, "/repo/.toyfmtignore");
+      expect(result.outputCode).toBe("start   \n# Shut down.\nstop\n");
+      expect(result.warnings).toContain(
+        "Formatting was skipped: the project's .toyfmtignore excludes this file.",
+      );
+    }
   });
 });
 

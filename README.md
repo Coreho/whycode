@@ -36,7 +36,8 @@ Tasks are tracked in [`backlog/`](#task-tracking).
   first: an interactive prompt in the CLI, the diff view in VS Code, a diff in
   Claude Code, and review suggestions on the pull request.
 - **Refactor mode is opt-in.** Only `whycode fix --refactor` lets the AI rewrite
-  code, with a warning, a confirmation and a review of every file.
+  code, with a warning, a confirmation (which shows the exact `testCommand`
+  that will run) and a review of every file.
 - **Private files stay private.** Files git ignores and files that may hold
   secrets are never read, and likely secrets in the code that is sent are
   masked. [PRIVACY.md](PRIVACY.md) has the details.
@@ -120,8 +121,11 @@ even when there is no diff.
 pull request would show them. Deleted files are left out and renamed files are
 covered under their new name. Whole files are processed, not just the changed
 lines, and the usual collection rules still apply. With either flag the paths
-are optional and only narrow the changes. `fix --staged` refuses a file that
-also has unstaged edits, so they can never be overwritten.
+are optional and only narrow the changes. With `--staged`, both `check` and
+`fix` skip a file that also has unstaged edits: WhyCode reads and writes the
+working copy, which for that file isn't what will be committed. `fix --staged`
+doesn't stage anything itself; at the end it prints the `git add` command for
+the files it wrote.
 
 **Review once, apply later.** `whycode check --save-plan review.json` saves the
 AI's comment plan for each file, and `whycode fix --plan review.json` applies
@@ -139,7 +143,8 @@ suggestions for existing comments and the ones you rejected; later `check` or
 showing pending suggestions, and don't bring rejected ones back. Any change to
 the file, the config, the prompt or WhyCode invalidates an entry, and
 `--refresh` ignores the remembered reviews for one run. To reset, delete the
-file. Keep it out of version control if your comments are private.
+file. Likely secrets in the stored suggestions are masked, as in code sent to
+the AI. Keep the file out of version control if your comments are private.
 
 **Exit codes:** `check` exits 0 when every file is clean, and 1 when a file
 would change or had its comments discarded, so CI can use it as a gate.
@@ -174,10 +179,10 @@ commands that let any agent act as WhyCode's AI:
 - `whycode write <file> --plan <file|-> --fingerprint <fp>
 [--accept-suggestions 1,3]` recomputes the result and writes it only if the
   fingerprint matches, so what is written is exactly what the person saw. The
-  fingerprint covers the file, the new code, the verification outcome, the
-  notes and every suggested comment rewrite in order, so a plan whose
-  suggestions changed after the preview is refused, and an accepted number
-  always means the suggestion that was shown.
+  fingerprint (a full SHA-256) covers the file, the new code, the
+  verification outcome, the notes and every suggested comment rewrite in
+  order, so a plan whose suggestions changed after the preview is refused, and
+  an accepted number always means the suggestion that was shown.
 
 The pipeline is deterministic up to the AI call, which is what makes this
 work: the core's `captureCommentRequest` stops at the AI call and returns the
@@ -324,7 +329,9 @@ change**, so:
    restores the original bytes afterwards, even when the tests fail or you
    press Ctrl+C (only a hard kill can leave the rewrite in place). Files are
    then processed one at a time. The command comes from `.whycoderc.json`, so
-   only use it in repositories you trust.
+   only use it in repositories you trust; the confirmation before the run
+   shows the exact command (hidden characters made visible) and the folder it
+   runs in, or says that no tests will run.
 4. Every file is shown with a warning, the change list and the test result,
    and needs your review; `--yes` is refused.
 
@@ -363,7 +370,10 @@ project has adopted that language's formatter:
 
 The search stops at the repository's top folder (the one with `.git`), so a
 config in a folder above your project never decides its style. A malformed
-`package.json` skips formatting with a note rather than guessing.
+`package.json` skips formatting with a note rather than guessing. A file that a
+`.prettierignore` excludes (any one between the file and the repository's top
+folder, its patterns read relative to its own folder) is never formatted, even
+with `--format`.
 
 Otherwise WhyCode adds comments without reformatting the file (still verified)
 and says so, instead of burying a few comments under hundreds of lines of
@@ -437,8 +447,10 @@ and returns a result. It never writes to disk.
    cached), then the file is skipped. Network and rate-limit errors are
    retried by the SDK, not again here.
 6. **Insert comments** as new lines above their targets, then re-format.
-   Existing lines are never edited. Comment text loses control characters and
-   trailing backslashes, and every line break in it starts a new comment line.
+   Existing lines are never edited. Comment text loses control characters,
+   Unicode bidirectional controls (which could make a comment display
+   differently from how the compiler reads the code around it) and trailing
+   backslashes, and every line break in it starts a new comment line.
 7. **Verify:** the token stream must exactly match step 4. If it doesn't, or if
    the formatter rejects the code once the comments are in, each comment is
    checked on its own with tree-sitter (no formatter run): the ones that would

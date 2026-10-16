@@ -2,8 +2,9 @@
 // reviewed with `whycode fix`, their still-pending comment suggestions, and
 // the suggestions the person rejected, so an unchanged file isn't sent to the
 // AI again and rejected suggestions don't come back. Only hashes and comment
-// suggestions are stored, never source code. Any change to the file, the
-// config, the prompt or the tool invalidates an entry; --refresh ignores it.
+// suggestions (with likely secrets masked) are stored, never source code.
+// Any change to the file, the config, the prompt or the tool invalidates an
+// entry; --refresh ignores it.
 import { lstat, readFile, writeFile } from "node:fs/promises";
 import type {
   CollectedFile,
@@ -17,6 +18,7 @@ import {
   commentPlanSchema,
   processWithReply,
   readSourceFile,
+  redactSecrets,
   resultFingerprint,
   writeSourceFile,
 } from "@whycode/core";
@@ -51,6 +53,19 @@ const suggestionId = (suggestion: ExistingCommentSuggestion): string =>
       suggestion.suggested,
     ]),
   );
+
+/** The suggestion with likely secrets masked, so none reaches the state file. */
+function withSecretsMasked(
+  suggestion: ExistingCommentSuggestion,
+): ExistingCommentSuggestion {
+  const mask = (text: string) => redactSecrets(text).code;
+  return {
+    ...suggestion,
+    original: mask(suggestion.original),
+    suggested: mask(suggestion.suggested),
+    reason: mask(suggestion.reason),
+  };
+}
 
 /** The review-state file for one project, loaded once per run. */
 export class ReviewState {
@@ -182,7 +197,7 @@ export class ReviewState {
     this.data.entries[file.path] = {
       sourceHash: digest(code),
       context: context.key,
-      pending: rebased,
+      pending: rebased.map(withSecretsMasked),
       rejected: [
         ...new Set([
           ...(previous?.sourceHash === digest(result.originalCode)

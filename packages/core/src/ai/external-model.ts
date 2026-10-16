@@ -74,10 +74,7 @@ export function resultFingerprint(result: FileResult): string {
       suggestion.reason,
     ]),
   };
-  return createHash("sha256")
-    .update(JSON.stringify(shown))
-    .digest("hex")
-    .slice(0, 16);
+  return createHash("sha256").update(JSON.stringify(shown)).digest("hex");
 }
 
 function safeMode(config: WhycodeConfig): WhycodeConfig {

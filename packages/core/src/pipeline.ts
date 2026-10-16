@@ -3,6 +3,7 @@
 // matches "Core pipeline" in CLAUDE.md. Refactor mode instead asks the AI to
 // rewrite the file and checks that the rewrite still parses. Nothing is
 // written to disk here; front-ends decide what to do with the result.
+import { basename } from "node:path";
 import type {
   CommentInsertion,
   ExistingCommentSuggestion,
@@ -360,6 +361,8 @@ async function formatCode(
  * Formatting style is the project's choice: with format "auto", a formatter
  * runs only when the project has adopted it (a config file or dependency),
  * so WhyCode never imposes a formatter's defaults on code that doesn't use it.
+ * A file the project's ignore file excludes (.prettierignore) is never
+ * formatted, even with format "always".
  */
 async function planFormatting(
   adapter: LanguageAdapter,
@@ -373,16 +376,23 @@ async function planFormatting(
     };
   }
   const formatter = adapter.formatter;
-  if (config.format === "always" || formatter === undefined) {
-    return { enabled: true };
-  }
+  if (formatter === undefined) return { enabled: true };
+  const path = input.absolutePath ?? input.path;
   try {
-    if (await formatter.isAdopted(input.absolutePath ?? input.path))
+    const ignoreFile = await formatter.ignoreFileFor?.(path);
+    if (ignoreFile !== undefined) {
+      return {
+        enabled: false,
+        skippedNote: `Formatting was skipped: the project's ${basename(ignoreFile)} excludes this file.`,
+      };
+    }
+    if (config.format === "always" || (await formatter.isAdopted(path))) {
       return { enabled: true };
+    }
   } catch (error) {
     return {
       enabled: false,
-      skippedNote: `Formatting was skipped: could not determine formatter adoption (${errorMessage(error)}).`,
+      skippedNote: `Formatting was skipped: could not read the project's formatter settings (${errorMessage(error)}).`,
     };
   }
   return {

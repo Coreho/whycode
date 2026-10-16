@@ -64,7 +64,7 @@ a path that doesn't exist, or a file that couldn't be processed.
 | `--provider <name>`       | `anthropic` (default) or `openrouter`                                                                                         |
 | `--model <id>`            | Claude model, default `claude-sonnet-5-5`                                                                                     |
 | `-y`, `--yes`             | `fix` only: accept every file's changes. Existing comments are still never edited automatically                               |
-| `--refactor`              | `fix` only: the AI rewrites the code. Asks for confirmation, and every file needs review                                      |
+| `--refactor`              | `fix` only: the AI rewrites the code. Asks for confirmation (showing the exact `testCommand`), and every file needs review    |
 | `-h`, `--help`            | Usage                                                                                                                         |
 | `-v`, `--version`         | Version                                                                                                                       |
 
@@ -78,13 +78,18 @@ Put a `.whycoderc.json` at your repository root; flags override it:
   "include": ["src/**"],
   "exclude": ["**/*.test.*", "dist/**"],
   "provider": "anthropic",
+| `--staged`                | Only files staged in git; a file with unstaged edits too is skipped                                                           |
+| `--diff <ref>`            | Only files changed since the branch left `<ref>`                                                                              |
+| `--format`                | Format even if the project hasn't adopted the formatter                                                                       |
+| `--no-format`             | Never format; only add comments                                                                                               |
   "model": "claude-sonnet-5-5",
   "testCommand": "npm test"
 }
 ```
 
-`testCommand` runs against each refactored file in `fix --refactor`, and the
-result is shown with its diff.
+`testCommand` runs in a shell against each refactored file in `fix --refactor`,
+and the result is shown with its diff. It comes from the repository, so the
+confirmation shows the exact command first.
 
 ## Privacy
 

@@ -15,9 +15,10 @@ import {
   applyCommentSuggestions,
   createFileSwapTestRunner,
   fileVerdict,
+  withoutHiddenCharacters,
   writeSourceFile,
 } from "@whycode/core";
-import { resolve } from "node:path";
+import { relative, resolve, sep } from "node:path";
 import { loadPlan, replayPlan } from "./saved-plan.js";
 import { ReviewState } from "./review-state.js";
 import { forEachInOrder } from "./in-order.js";
@@ -79,15 +80,6 @@ export async function runFix(
     options.scope,
   );
   if (run === undefined) return EXIT_CODES.error;
-  // Writing a partially staged file would overwrite its unstaged edits.
-  for (const file of run.files.filter((f) => run.partiallyStaged.has(f.path))) {
-    run.skips.push({
-      path: file.path,
-      reason:
-        "has unstaged changes as well as staged ones; stage or stash them first",
-    });
-  }
-  run.files = run.files.filter((file) => !run.partiallyStaged.has(file.path));
   const refactor = run.config.mode === "refactor";
   if (refactor && options.yes) {
     io.stderr(
@@ -113,7 +105,7 @@ export async function runFix(
   const session = new FixSession(io, paint, options.yes, deps.adapters, state);
   session.addSkips(run.skips);
   if (run.files.length > 0) {
-    if (refactor && !(await confirmRefactor(io, paint))) {
+    if (refactor && !(await confirmRefactor(io, paint, run))) {
       io.stdout("Cancelled. Nothing was changed.\n");
       return EXIT_CODES.clean;
     }
@@ -123,19 +115,73 @@ export async function runFix(
     } else await reviewAll(run, session, io, deps, state, options.refresh);
   }
   const exitCode = session.finish();
+  if (options.scope?.kind === "staged") {
+    io.stdout(stagingNote(session.writtenPaths, run.rootDir, io.cwd));
+  }
   await state?.flush();
   return exitCode;
 }
 
-async function confirmRefactor(io: CliIo, paint: Paint): Promise<boolean> {
+/**
+ * fix --staged writes the working copy, so its changes aren't staged yet.
+ * Staging stays the user's step; this names the command for the written files.
+ */
+export function stagingNote(
+  written: readonly string[],
+  rootDir: string,
+  cwd: string,
+): string {
+  if (written.length === 0) return "";
+  const paths = written.map((path) =>
+    shellQuote(relative(cwd, resolve(rootDir, path)).split(sep).join("/")),
+  );
+  return `\nThe written changes are not staged yet. To commit them, stage them:\n  git add -- ${paths.join(" ")}\n`;
+}
+
+/** Quotes a path for a POSIX shell when it has characters a shell treats specially. */
+function shellQuote(path: string): string {
+  return /^[\w./@+-]+$/.test(path) ? path : `'${path.replace(/'/g, "'\\''")}'`;
+}
+
+async function confirmRefactor(
+  io: CliIo,
+  paint: Paint,
+  run: PreparedRun,
+): Promise<boolean> {
   io.stdout(
     `${paint(["bold", "red"], "Refactor mode rewrites your code, so its logic WILL change.")}
 The AI may restructure, rename and simplify; nothing checks that behavior is
-preserved except your tests (testCommand in .whycoderc.json) and your review.
-`,
+preserved except your tests and your review.
+${describeTestCommand(run.config.testCommand, run.rootDir)}`,
   );
   const answer = await io.ask("Continue? [y/N] ");
   return answer !== undefined && /^y(es)?$/i.test(answer.trim());
+}
+
+/**
+ * The testCommand comes from the project's .whycoderc.json, which may not be
+ * yours (a cloned repository), so the exact shell command is shown before
+ * anything runs, with hidden characters made visible.
+ */
+export function describeTestCommand(
+  command: string | null,
+  rootDir: string,
+): string {
+  if (command === null) {
+    return "No testCommand is set in .whycoderc.json, so no tests will run.\n";
+  }
+  return `After each rewrite, this testCommand from .whycoderc.json runs in a shell in ${rootDir}:\n  ${visible(command)}\n`;
+}
+
+/** Text with every line break and hidden character shown as a \u{...} escape. */
+function visible(text: string): string {
+  return [...text]
+    .map((char) =>
+      char === "\n" || char === "\r" || withoutHiddenCharacters(char) === ""
+        ? `\\u{${(char.codePointAt(0) ?? 0).toString(16)}}`
+        : char,
+    )
+    .join("");
 }
 
 async function reviewAll(
@@ -204,6 +250,11 @@ type FileDecision = "accept" | "reject" | "skip" | "quit";
 class FixSession {
   stopped = false;
   private readonly written: string[] = [];
+  /** Paths of the files written so far, relative to the project root. */
+  get writtenPaths(): readonly string[] {
+    return this.written;
+  }
+
   private readonly rejected: string[] = [];
   private readonly skippedByUser: string[] = [];
   private readonly notReviewed: string[] = [];

@@ -37,9 +37,10 @@ export interface PreparedRun {
   files: CollectedFile[];
   /** Paths collection passed over, with the reason. */
   skips: Skip[];
-  /** With --staged: files that also have unstaged changes. */
-  partiallyStaged: ReadonlySet<string>;
 }
+
+const PARTIALLY_STAGED_REASON =
+  "has unstaged changes as well as staged ones; stage or stash them first";
 
 /** Loads config and collects files, or prints why the run can't start. */
 export async function prepareRun(
@@ -78,13 +79,16 @@ export async function prepareRun(
     path,
     reason,
   }));
-  return {
-    rootDir,
-    config,
-    files: collection.files,
-    skips,
-    partiallyStaged: changes?.partiallyStaged ?? new Set(),
-  };
+  // With --staged, a file that also has unstaged changes is passed over: its
+  // working copy, which WhyCode reads and writes, isn't what will be committed.
+  const partial =
+    scope?.kind === "staged" ? changes?.partiallyStaged : undefined;
+  const isPartial = (file: CollectedFile) => partial?.has(file.path) === true;
+  for (const file of collection.files.filter(isPartial)) {
+    skips.push({ path: file.path, reason: PARTIALLY_STAGED_REASON });
+  }
+  const files = collection.files.filter((file) => !isPartial(file));
+  return { rootDir, config, files, skips };
 }
 
 export type FileOutcome =

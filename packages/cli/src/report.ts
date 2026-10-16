@@ -3,6 +3,7 @@
 // comment suggestions, and at the end the skipped paths grouped by reason
 // and a summary. Pure functions, no I/O.
 import { styleText } from "node:util";
+import { withoutHiddenCharacters } from "@whycode/core";
 import type {
   ExistingCommentSuggestion,
   FileResult,
@@ -167,23 +168,31 @@ function renderSuggestionBody(
     `  line ${suggestion.line}:`,
     ...markLines("-", suggestion.original).map((line) => paint("red", line)),
     ...markLines("+", suggestion.suggested).map((line) => paint("green", line)),
-    `    why: ${suggestion.reason}`,
+    `    why: ${oneLine(suggestion.reason)}`,
   ].join("\n");
 }
 
-// Every line break a compiler may honor, and control characters, which could
-// rewrite the terminal: AI-written text is shown with neither.
+// Every line break a compiler may honor. AI-written text is shown without
+// them and without hidden characters, which could rewrite the terminal or
+// make the text read differently from what it contains.
 const DISPLAY_LINE_BREAKS = /\r\n|[\n\r\u0085\u2028\u2029]/;
-// eslint-disable-next-line no-control-regex -- matching control characters is the point
-const CONTROL_CHARACTERS = /[\u0000-\u0008\u000b-\u001f\u007f]/g;
 
 /** Indents each line of a (possibly multi-line) comment behind a diff marker. */
 function markLines(marker: string, text: string): string[] {
   return text
     .trim()
     .split(DISPLAY_LINE_BREAKS)
-    .map((line) => line.replace(CONTROL_CHARACTERS, ""))
+    .map(withoutHiddenCharacters)
     .map((line) => `    ${marker} ${line.trimEnd()}`);
+}
+
+/** AI-written text as one clean line. */
+function oneLine(text: string): string {
+  return text
+    .trim()
+    .split(DISPLAY_LINE_BREAKS)
+    .map(withoutHiddenCharacters)
+    .join(" ");
 }
 
 /** Skipped paths grouped under their reason, long groups shortened. */

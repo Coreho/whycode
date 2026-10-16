@@ -29,6 +29,8 @@ export interface LanguageAdapter {
   formatter?: {
     name: string;
     isAdopted(filePath: string): Promise<boolean>;
+    /** The project's ignore file that excludes this file from formatting, if any. */
+    ignoreFileFor?(filePath: string): Promise<string | undefined>;
   };
 }
 

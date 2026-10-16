@@ -12,6 +12,7 @@ import {
 } from "@whycode/core/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runCli } from "./cli.js";
+import { describeTestCommand } from "./fix.js";
 import type { CliIo } from "./io.js";
 import type { CommandDeps } from "./run.js";
 
@@ -310,6 +311,23 @@ describe("whycode fix", () => {
       expect(questions).toEqual(["Continue? [y/N] "]);
       expect(provider.requests).toHaveLength(0);
       expect(await read("a.toy")).toBe("alpha\n");
+      expect(stdout).toContain("No testCommand is set in .whycoderc.json");
+    });
+
+    it("shows the exact testCommand that will run in a shell before asking", async () => {
+      await files({
+        "a.toy": "alpha\n",
+        ".whycoderc.json": JSON.stringify({ testCommand: "npm test" }),
+      });
+      await runCli(
+        ["fix", "a.toy", "--refactor"],
+        terminal(["n"]),
+        deps(rewrite),
+      );
+      expect(stdout).toContain(
+        "this testCommand from .whycoderc.json runs in a shell in",
+      );
+      expect(stdout).toContain("\n  npm test\n");
     });
 
     it("warns on every rewritten file and still asks before writing it", async () => {
@@ -348,5 +366,19 @@ describe("whycode fix", () => {
       expect(stderr).toMatch(/--yes can't be used in refactor mode/);
       expect(await read("a.toy")).toBe("alpha\n");
     });
+  });
+});
+
+describe("describeTestCommand", () => {
+  it("makes line breaks and hidden characters in the command visible", () => {
+    const override = String.fromCharCode(0x202e);
+    const escape = String.fromCharCode(27);
+    const text = describeTestCommand(
+      `npm test${override}\ncurl x${escape}`,
+      "/repo",
+    );
+    expect(text).toContain("npm test\\u{202e}\\u{a}curl x\\u{1b}\n");
+    expect(text).not.toContain(override);
+    expect(text).not.toContain(escape);
   });
 });

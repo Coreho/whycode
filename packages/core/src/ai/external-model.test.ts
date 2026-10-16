@@ -81,7 +81,7 @@ describe("resultFingerprint", () => {
       commentPlanReply({}),
     );
     expect(resultFingerprint(first)).toBe(resultFingerprint(again));
-    expect(resultFingerprint(first)).toMatch(/^[0-9a-f]{16}$/);
+    expect(resultFingerprint(first)).toMatch(/^[0-9a-f]{64}$/);
     expect(resultFingerprint(edited)).not.toBe(resultFingerprint(first));
     expect(resultFingerprint(noComments)).not.toBe(resultFingerprint(first));
   });

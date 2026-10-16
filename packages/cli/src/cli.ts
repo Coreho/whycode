@@ -47,7 +47,8 @@ Options:
   --provider <name>           anthropic (default, needs ANTHROPIC_API_KEY) or
                               openrouter (needs OPENROUTER_API_KEY)
   --model <id>                Claude model to use (default: claude-sonnet-5-5)
-  --staged                    check/fix: only files staged in git
+  --staged                    check/fix: only files staged in git; a file that also has
+                              unstaged edits is skipped. fix doesn't stage what it writes.
   --diff <ref>                check/fix: only files changed since the branch left <ref>
                               (committed, uncommitted and new), e.g. --diff origin/main.
                               With either, paths are optional and narrow the changes.
@@ -65,7 +66,8 @@ Options:
   -y, --yes                   fix: apply every file's changes without asking. Existing
                               comments are still never edited. Not allowed with --refactor.
   --refactor                  fix: let the AI rewrite the code. Logic WILL change; asks
-                              for confirmation, and every file needs your review.
+                              for confirmation (showing the exact testCommand that will
+                              run), and every file needs your review.
   -h, --help                  Show this help
   -v, --version               Show the version
 

@@ -173,8 +173,9 @@ only where you name them:
   the comments the AI proposed and the existing comments its suggestions
   quote, but no other source code. It never overwrites an existing file.
 - `--review-state <file>` remembers reviewed files: their hashes, the pending
-  suggestions for existing comments and the IDs of the ones you rejected. No
-  source code. Delete the file to reset it.
+  suggestions for existing comments (with likely secrets masked, as in code
+  sent to the AI) and the IDs of the ones you rejected. No source code.
+  Delete the file to reset it.
 
 Both are created readable only by your user account where the system
 supports it. Results live in memory for one run and are
@@ -190,7 +191,10 @@ It writes to your files only in these cases:
   the tests pass or fail. If you press Ctrl+C or close the terminal during the
   tests, WhyCode puts the original back before it exits; only a hard kill (such
   as `kill -9` or a power cut) can leave the rewritten version in the file. The
-  test command is your own and runs on your machine with your permissions.
+  test command comes from the project's `.whycoderc.json` and runs in a shell
+  on your machine with your permissions. In a repository someone else wrote it
+  is their command, so the refactor confirmation shows it exactly before
+  anything runs.
 
 ## Front-ends
 

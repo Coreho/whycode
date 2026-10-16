@@ -104,7 +104,7 @@ describe("agent commands", () => {
     stdin = plan;
     stdout = "";
     expect(await run("preview", path, "--plan", "-")).toBe(0);
-    const fingerprint = /Fingerprint: ([0-9a-f]{16})/.exec(stdout)?.[1];
+    const fingerprint = /Fingerprint: ([0-9a-f]{64})/.exec(stdout)?.[1];
     if (fingerprint === undefined)
       throw new Error(`no fingerprint in:\n${stdout}`);
     return fingerprint;
@@ -159,7 +159,7 @@ describe("agent commands", () => {
     expect(stdout).toContain("+# Shut down.");
     expect(stdout).toContain("(1 of 1)");
     expect(stdout).toMatch(
-      /whycode write a\.toy --plan <the same plan> --fingerprint [0-9a-f]{16} \[--accept-suggestions/,
+      /whycode write a\.toy --plan <the same plan> --fingerprint [0-9a-f]{64} \[--accept-suggestions/,
     );
     expect(await read("a.toy")).toBe("# go\nstop\n");
   });

@@ -102,6 +102,29 @@ export async function prettierAdopted(filePath: string): Promise<boolean> {
   return dependency || (await projectPrettierConfig(filePath)) !== undefined;
 }
 
+/**
+ * The .prettierignore that tells Prettier to leave the file alone, if any.
+ * Every .prettierignore between the file and the repository root counts,
+ * each with its patterns read relative to its own folder.
+ */
+export async function prettierIgnoreFor(
+  filePath: string,
+): Promise<string | undefined> {
+  const ignoreFiles: string[] = [];
+  await inFolderOrAbove(filePath, async (dir) => {
+    const ignoreFile = join(dir, ".prettierignore");
+    if ((await readOptional(ignoreFile)) !== undefined) {
+      ignoreFiles.push(ignoreFile);
+    }
+    return false;
+  });
+  for (const ignorePath of ignoreFiles) {
+    const info = await prettier.getFileInfo(resolve(filePath), { ignorePath });
+    if (info.ignored) return ignorePath;
+  }
+  return undefined;
+}
+
 /** Only Ruff settings opt into Ruff; Black preferences are not translated. */
 export function ruffAdopted(filePath: string): Promise<boolean> {
   return inFolderOrAbove(

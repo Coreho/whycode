@@ -152,6 +152,15 @@ describe("applyCommentSuggestions", () => {
       expect(sameLine.code).toBe("function f(x) {\n  return /* new */ x;\n}\n");
     });
 
+    it("strips bidirectional controls from a block comment rewrite", async () => {
+      const rightToLeftOverride = String.fromCharCode(0x202e);
+      const code = "/* old */\nlet x = 1;\n";
+      const result = await apply("a.js", code, [
+        suggest(1, "/* old */", `/* new${rightToLeftOverride} */`),
+      ]);
+      expect(result.code).toBe("/* new */\nlet x = 1;\n");
+    });
+
     it("refuses a replacement that closes the comment early", async () => {
       const code = "/* old */\nlet x = 1;\n";
       const result = await apply("a.js", code, [

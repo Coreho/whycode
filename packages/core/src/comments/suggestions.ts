@@ -15,7 +15,12 @@ import type { LanguageAdapter } from "../languages/adapter.js";
 import { findAdapterForPath } from "../languages/adapter.js";
 import { findCommentOnlyLanguage } from "../languages/fallback.js";
 import { compareTokenStreams } from "../verify.js";
-import { cleanCommentText, LINE_BREAKS, toCommentLines } from "./insert.js";
+import {
+  cleanCommentText,
+  LINE_BREAKS,
+  toCommentLines,
+  withoutHiddenCharacters,
+} from "./insert.js";
 
 export interface SuggestionsResult {
   /** The code with every applicable suggestion applied. */
@@ -196,7 +201,7 @@ function blockComment(
   suggestion: ExistingCommentSuggestion,
 ): Replacement | undefined {
   const original = suggestion.original.trim();
-  const suggested = suggestion.suggested.trim();
+  const suggested = withoutHiddenCharacters(suggestion.suggested).trim();
   if (!isBlockComment(original)) return undefined;
   const start = suggestion.line - 1;
   const end = start + original.split("\n").length;

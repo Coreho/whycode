@@ -218,6 +218,28 @@ describe("saved reviews", () => {
     expect(calls).toBe(1);
   });
 
+  it("masks likely secrets in the suggestions it remembers", async () => {
+    const token = `ghp_${"a1".repeat(18)}`;
+    await writeFile(join(root, "a.toy"), "# Wrong.\nrun\n");
+    response = commentPlanReply({
+      insertions: [{ line: 2, position: "above", text: "Begin." }],
+      existingCommentSuggestions: [
+        {
+          line: 1,
+          original: "Wrong.",
+          suggested: `Uses ${token}.`,
+          reason: `Mentions ${token}.`,
+        },
+      ],
+    });
+    expect(
+      await run("fix", "a.toy", "--yes", "--review-state", "state.json"),
+    ).toBe(0);
+    const state = await readFile(join(root, "state.json"), "utf8");
+    expect(state).toContain("Uses [REDACTED].");
+    expect(state).not.toContain(token);
+  });
+
   it("can remember a saved-plan application and then check it offline", async () => {
     await save();
     expect(
