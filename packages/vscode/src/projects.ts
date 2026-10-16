@@ -47,7 +47,7 @@ export async function prepareRun(
     });
     if (loaded.mode === "refactor") {
       run.notes.push(
-        `.whycoderc.json in ${rootDir} asks for refactor mode, which the VS Code extension doesn't offer; safe mode is used, so logic never changes.`,
+        `.whycoderc.json in ${rootDir} asks for refactor mode, which the VS Code extension doesn't offer; safe mode is used: formatting and checked comments only.`,
       );
     }
     const config: WhycodeConfig = { ...loaded, mode: "safe" };

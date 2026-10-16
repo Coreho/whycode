@@ -1,9 +1,10 @@
 # whycode
 
-Cleans up AI-written code so people can understand it: formats it with your
-project's formatter and adds comments that explain **what** the code does and
-**why**, without changing its logic. Every change is shown as a diff first,
-and nothing is written until you accept it.
+Cleans up AI-written code so people can understand it: adds comments that
+explain **what** the code does and **why**, checked so they can't change the
+code, and formats it with your project's own formatter when the project uses
+one. Every change is shown as a diff first, and nothing is written until you
+accept it.
 
 This is the command-line front-end of [WhyCode](https://github.com/Coreho/whycode#readme).
 See the main README for how verification works, the full configuration
@@ -16,15 +17,29 @@ npm install -g whycode
 ```
 
 Needs Node.js 22.12 or newer. Languages with full support (formatting plus a
-check that the code's logic is unchanged): Python, JavaScript, TypeScript, Go,
+check that adding comments leaves the code's tokens unchanged): Python, JavaScript, TypeScript, Go,
 Rust, C# and Java. JavaScript and TypeScript are formatted with the bundled
 Prettier. The other formatters are used when they're on your PATH:
 [Ruff](https://docs.astral.sh/ruff/) (Python), `gofmt` (Go), `rustfmt` (Rust),
 [CSharpier](https://csharpier.com/) (C#) and
 [google-java-format](https://github.com/google/google-java-format) (Java).
-Without one, files still get comments and the logic check; only formatting is
-skipped. Ruby, shell, C, C++, PHP, Kotlin, Swift, SQL and a few others get
+Without one, files still get comments and the token check; only formatting
+is skipped. Ruby, shell, C, C++, PHP, Kotlin, Swift, SQL and a few others get
 comments only, clearly labeled.
+
+## What is checked
+
+Before adding comments, WhyCode records the code's tokens (everything except
+comments, as tree-sitter parses it), and compares them afterwards. If anything
+but comments changed, the comments are discarded and only the formatting is
+offered. The formatting itself is done by your project's formatter, and only
+when the project has adopted it (a config file or dependency); `--no-format`
+skips it, so the only changes are checked comment insertions.
+
+Known limits: code that reads its own line numbers (stack traces, Python's
+`inspect`, Rust's `line!()`) sees new numbers, because inserted lines move
+the code below them; comments-only languages aren't checked, and their results
+say so; and `--refactor` changes logic by design.
 
 ## API key
 
@@ -63,6 +78,10 @@ a path that doesn't exist, or a file that couldn't be processed.
 | `--comment-level <level>` | `light` (default): summaries and non-obvious "why"; `medium`: also a note per block; `heavy`: near line-by-line, for learners |
 | `--provider <name>`       | `anthropic` (default) or `openrouter`                                                                                         |
 | `--model <id>`            | Claude model, default `claude-sonnet-5-5`                                                                                     |
+| `--staged`                | Only files staged in git; a file with unstaged edits too is skipped                                                           |
+| `--diff <ref>`            | Only files changed since the branch left `<ref>`                                                                              |
+| `--format`                | Format even if the project hasn't adopted the formatter                                                                       |
+| `--no-format`             | Never format; only add comments                                                                                               |
 | `-y`, `--yes`             | `fix` only: accept every file's changes. Existing comments are still never edited automatically                               |
 | `--refactor`              | `fix` only: the AI rewrites the code. Asks for confirmation (showing the exact `testCommand`), and every file needs review    |
 | `-h`, `--help`            | Usage                                                                                                                         |
@@ -78,10 +97,6 @@ Put a `.whycoderc.json` at your repository root; flags override it:
   "include": ["src/**"],
   "exclude": ["**/*.test.*", "dist/**"],
   "provider": "anthropic",
-| `--staged`                | Only files staged in git; a file with unstaged edits too is skipped                                                           |
-| `--diff <ref>`            | Only files changed since the branch left `<ref>`                                                                              |
-| `--format`                | Format even if the project hasn't adopted the formatter                                                                       |
-| `--no-format`             | Never format; only add comments                                                                                               |
   "model": "claude-sonnet-5-5",
   "testCommand": "npm test"
 }

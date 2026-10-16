@@ -1,7 +1,7 @@
 // What WhyCode's commands do: collect the chosen files (where the privacy
 // rules apply), run the core pipeline on them under a cancellable progress
 // notification, then review the results with the user. The editor only runs
-// safe mode, which never changes program logic.
+// safe mode: formatting and comments checked not to change the code's tokens.
 import type {
   AIProvider,
   CollectedFile,

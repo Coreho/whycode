@@ -1,9 +1,10 @@
 # WhyCode for Claude Code
 
 A Claude Code plugin with one skill, `/whycode:cleanup`, that cleans up
-AI-written code: it formats the files and adds comments that explain **what**
-the code does and **why**, without changing its logic. It uses Claude Code's
-own model, so no API key is needed.
+AI-written code: it adds comments that explain **what** the code does and
+**why**, checked so they can't change the code, and formats the files with the
+project's own formatter when the project uses one. It uses Claude Code's own
+model, so no API key is needed.
 
 Part of [WhyCode](../../README.md); see the main README for how verification
 works and the configuration reference.
@@ -51,7 +52,7 @@ model into WhyCode's AI step with three CLI commands:
    Collection applies the usual privacy rules, and likely secrets are masked.
 2. Claude writes the JSON comment plan, and `whycode preview <file> --plan -`
    runs it through WhyCode's normal pipeline: validation, insertion,
-   formatting and the logic-unchanged check. It prints the diff, the
+   formatting and the token check. It prints the diff, the
    suggestions and a fingerprint, and writes nothing.
 3. After you approve, `whycode write <file> --plan - --fingerprint <fp>`
    recomputes the result and writes it only if the fingerprint still matches,
@@ -65,7 +66,12 @@ The same as the CLI's:
   `whycode prompt` and `whycode preview`, so Claude Code asks your permission
   before every `whycode write`.
 - Verification is required: if Claude's comments would change the code's
-  tokens, WhyCode discards them and offers only the formatting.
+  tokens (everything except comments, as tree-sitter parses it), WhyCode
+  discards them and offers only the formatting. Formatting is done by the
+  project's own formatter, only when the project has adopted one. Known
+  limits: code that reads its own line numbers sees new numbers, and
+  comments-only languages (Ruby, shell, C and others) aren't checked; their
+  results say so.
 - Existing comments are never changed unless you accept a suggestion for
   them; suggestions are checked to change comment text only.
 - Gitignored files and files that may hold secrets (`.env*`, `*.pem`, `*.key`

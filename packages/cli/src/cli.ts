@@ -19,7 +19,8 @@ export const defaultDeps: CommandDeps = {
 };
 
 export const HELP_TEXT = `whycode: formats AI-written code and adds comments that explain what it does and why.
-Program logic is never changed (unless you ask for --refactor).
+Comments are checked so they can't change the code, and formatting uses only the
+project's own formatter. Logic changes only if you ask for --refactor.
 
 Usage:
   whycode check <paths...>    Show the diffs and comment suggestions without writing anything.

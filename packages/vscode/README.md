@@ -1,13 +1,14 @@
 # WhyCode for VS Code
 
-Cleans up AI-written code so people can understand it: formats it with your
-project's formatter and adds comments that explain **what** the code does and
-**why**, without changing its logic. Every change opens in VS Code's diff view
-first, and nothing is written until you apply it.
+Cleans up AI-written code so people can understand it: adds comments that
+explain **what** the code does and **why**, checked so they can't change the
+code, and formats it with your project's own formatter when the project uses
+one. Every change opens in VS Code's diff view first, and nothing is written
+until you apply it.
 
 This is the VS Code front-end of
 [WhyCode](https://github.com/Coreho/whycode#readme). See the main README for
-how the logic check works, the full `.whycoderc.json` reference and the other
+how the token check works, the full `.whycoderc.json` reference and the other
 front-ends (CLI, Claude Code plugin, GitHub Action).
 
 ## Commands
@@ -39,9 +40,12 @@ with the current text and the reason. Nothing in the list is ticked: only the
 rewrites you tick are applied. Suggestions are offered when you apply the
 file's changes, or when the file has no other changes.
 
-The extension only runs WhyCode's safe mode, which never changes program
-logic. Refactor mode is CLI-only (`whycode fix --refactor`); a `"mode":
-"refactor"` in `.whycoderc.json` is ignored here, with a note in the output.
+The extension only runs WhyCode's safe mode: formatting by the project's own
+formatter, plus comments that are checked to leave the code's tokens
+(everything except comments) unchanged. Code that reads its own line numbers
+still sees new numbers, because inserted lines move the code below them.
+Refactor mode is CLI-only (`whycode fix --refactor`); a `"mode": "refactor"`
+in `.whycoderc.json` is ignored here, with a note in the output.
 
 ## Settings
 
@@ -87,12 +91,12 @@ is shown in the **WhyCode** output channel.
 ## Languages
 
 Python, JavaScript, TypeScript, Go, Rust, C# and Java get formatting plus a
-check that the code's logic is unchanged. JavaScript and TypeScript are
-formatted with the bundled Prettier; the other formatters (Ruff, gofmt,
+check that adding comments leaves the code's tokens unchanged. JavaScript and
+TypeScript are formatted with the bundled Prettier; the other formatters (Ruff, gofmt,
 rustfmt, CSharpier, google-java-format) are used when they're on your PATH.
-Without one, files still get comments and the logic check. Ruby, shell, C,
-C++, PHP, Kotlin, Swift, SQL and a few others get comments only, clearly
-labeled in the review.
+Without one, files still get comments and the token check. Ruby, shell, C,
+C++, PHP, Kotlin, Swift, SQL and a few others get comments only, without the
+check, clearly labeled in the review.
 
 ## License
 

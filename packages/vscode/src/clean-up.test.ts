@@ -298,7 +298,9 @@ describe("choosing what to process", () => {
 
     expect(model.prompts[0]).not.toContain("You refactor source code");
     expect(await readProjectFile("cart.toy")).toBe(commentedCart);
-    expect(output()).toContain("safe mode is used, so logic never changes");
+    expect(output()).toContain(
+      "safe mode is used: formatting and checked comments only",
+    );
   });
 
   it("lets the comment level setting override .whycoderc.json", async () => {

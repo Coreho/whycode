@@ -201,10 +201,10 @@ function decisionItems(remaining: number): DecisionItem[] {
 /** What the user should know about this proposal before deciding. */
 function reviewHint(result: FileResult): string {
   if (result.verification === "failed") {
-    return "Only formatting is proposed: the AI's comments failed the check that the code's logic is unchanged.";
+    return "Only formatting is proposed: the AI's comments failed the check that they leave the code's tokens unchanged.";
   }
   if (result.mode === "comments-only") {
-    return "Comments only: this language gets no formatting and no logic check.";
+    return "Comments only: this language gets no formatting and no token check.";
   }
   return "Review the diff, then apply or discard the changes.";
 }

@@ -1,7 +1,7 @@
 {
   "name": "whycode-vscode",
   "displayName": "WhyCode",
-  "description": "Cleans up AI-written code: formats it and adds comments that explain what it does and why, without changing its logic.",
+  "description": "Cleans up AI-written code: adds comments that explain what it does and why, checked so they can't change the code, and formats it with the project's own formatter.",
   "version": "0.1.0",
   "private": true,
   "publisher": "whycode",

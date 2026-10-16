@@ -1,6 +1,6 @@
 ---
 name: cleanup
-description: Clean up AI-written code with WhyCode, using Claude Code's own model. Formats the files and adds comments that explain what the code does and why, without changing its logic; shows each file's diff and writes only what the user approves.
+description: Clean up AI-written code with WhyCode, using Claude Code's own model. Adds comments that explain what the code does and why, checked so they can't change the code, and formats with the project's own formatter; shows each file's diff and writes only what the user approves.
 argument-hint: "[paths...] [--comment-level light|medium|heavy]"
 disable-model-invocation: true
 allowed-tools: Bash(whycode --version) Bash(whycode prompt:*) Bash(whycode preview:*)
@@ -10,8 +10,8 @@ allowed-tools: Bash(whycode --version) Bash(whycode prompt:*) Bash(whycode previ
 
 Clean up these paths with WhyCode: $ARGUMENTS
 
-WhyCode formats code and inserts explanatory comments, then proves the code's
-logic is unchanged by comparing token streams. In this skill **you are
+WhyCode formats code with the project's own formatter and inserts explanatory
+comments, then checks that the comments left the code's tokens unchanged. In this skill **you are
 WhyCode's AI**: WhyCode prints the exact request it would send to a model, you
 write the JSON reply, and WhyCode does everything else (privacy rules,
 formatting, insertion, verification, writing). No API key is needed.

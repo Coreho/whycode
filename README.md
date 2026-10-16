@@ -2,9 +2,9 @@
 
 _Last updated: 2026-10-15_
 
-WhyCode cleans up AI-written code so humans can understand it. It fixes
-formatting and adds comments that explain **what** the code does and **why**,
-without changing program logic.
+WhyCode cleans up AI-written code so humans can understand it. It adds
+comments that explain **what** the code does and **why**, checked so they can't
+change the code, and formats it with the project's own formatter.
 
 It comes as four front-ends that share one core engine: a CLI (`whycode`), a
 Claude Code plugin, a VS Code extension and a GitHub Action.
@@ -25,10 +25,17 @@ Tasks are tracked in [`backlog/`](#task-tracking).
 
 ## What WhyCode promises
 
-- **Logic never changes in the default (safe) mode.** WhyCode records the
-  code's tokens before adding comments and compares them afterwards. If
-  anything but comments changed, the comments are thrown away and only the
-  formatting is kept.
+- **Adding comments can't change the code (default, safe mode).** WhyCode
+  records the code's tokens (everything except comments, as tree-sitter
+  parses it) before adding comments and compares them afterwards. If anything
+  but comments changed, the comments are thrown away and only the formatting
+  is kept. Formatting is done by the project's own formatter, and only when
+  the project has adopted one (or you pass `--format`); `--no-format` skips it,
+  so the only changes are checked comment insertions. The known limits: code
+  that reads its own line numbers sees new numbers, files in languages WhyCode
+  can only comment aren't checked, and refactor mode changes logic by design.
+  [What verification guarantees](#what-verification-guarantees) has the
+  details.
 - **Existing comments are never edited automatically.** Improvements to them
   are offered as separate suggestions, each accepted on its own, and a
   suggestion can only change comment text.
@@ -313,8 +320,11 @@ restate the code.
 
 **Safe mode** (the default, and the only mode outside the CLI) changes
 formatting and adds comments, nothing else. The token check described under
-[How it works](#how-it-works) proves it for every file; a file that fails the
-check keeps only its formatting.
+[How it works](#how-it-works) checks every comment insertion; a file that
+fails the check keeps only its formatting. The formatting itself comes from
+the project's own formatter and isn't token-checked, because formatters
+legitimately change tokens (quote style, semicolons, parentheses); see
+[What verification guarantees](#what-verification-guarantees) for the limits.
 
 **Refactor mode** (`whycode fix --refactor`, or `"mode": "refactor"` with
 `whycode fix`) lets the AI rewrite the whole file for readability. **Logic may
@@ -463,6 +473,22 @@ and returns a result. It never writes to disk.
    warnings.
 
 ### What verification guarantees
+
+What is checked: inserting comments (and accepting a suggested rewrite of one)
+leaves the code's tokens, as tree-sitter parses the formatted file, exactly as
+they were. What isn't:
+
+- **Formatting.** It is done by the project's own formatter, only when the
+  project has adopted it (see [Supported languages](#supported-languages));
+  `--no-format` skips it so that the only changes are checked comment
+  insertions.
+- **Code that reads its own line numbers.** Inserted lines move the code
+  below them; see **Line numbers** below.
+- **Comments-only languages.** Ruby, shell, C and the others in that list have
+  no parser in WhyCode, so their comments are added without a check and the
+  result says so.
+- **Refactor mode.** It changes logic by design; only parsing and your
+  `testCommand` check the rewrite.
 
 `src/verification.test.ts` runs the real Python and TypeScript adapters over
 `fixtures/*/verification.*`, a file per language full of risky constructs (Go,
