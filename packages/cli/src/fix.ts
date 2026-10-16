@@ -11,11 +11,15 @@ import type {
   PipelineDeps,
 } from "@whycode/core";
 import {
+  findProjectRoot,
   applyCommentSuggestions,
   createFileSwapTestRunner,
   fileVerdict,
   writeSourceFile,
 } from "@whycode/core";
+import { resolve } from "node:path";
+import { loadPlan, replayPlan } from "./saved-plan.js";
+import { ReviewState } from "./review-state.js";
 import { forEachInOrder } from "./in-order.js";
 import type { CliIo } from "./io.js";
 import type { Paint, Skip } from "./report.js";
@@ -42,6 +46,9 @@ export interface FixOptions {
   yes: boolean;
   /** --staged or --diff: only the files git reports as changed. */
   scope?: ChangeScope;
+  plan?: string;
+  reviewState?: string;
+  refresh?: boolean;
 }
 
 const NO_TERMINAL_MESSAGE = `whycode: nothing was written because there is no terminal to review the changes in.
@@ -55,9 +62,18 @@ export async function runFix(
   io: CliIo,
   deps: CommandDeps,
 ): Promise<number> {
+  const saved =
+    options.plan === undefined
+      ? undefined
+      : await loadPlan(resolve(io.cwd, options.plan));
+  const root = await findProjectRoot(io.cwd);
+  const selected =
+    paths.length > 0
+      ? paths
+      : (saved?.files.map((file) => resolve(root, file.path)) ?? []);
   const run = await prepareRun(
-    paths,
-    options.overrides,
+    selected,
+    { ...saved?.overrides, ...options.overrides },
     io,
     deps,
     options.scope,
@@ -85,16 +101,30 @@ export async function runFix(
   }
 
   const paint = painter(io.color);
-  const session = new FixSession(io, paint, options.yes, deps.adapters);
+  const state =
+    options.reviewState === undefined
+      ? undefined
+      : await ReviewState.open(
+          resolve(io.cwd, options.reviewState),
+          run.rootDir,
+          run.config,
+          deps.adapters,
+        );
+  const session = new FixSession(io, paint, options.yes, deps.adapters, state);
   session.addSkips(run.skips);
   if (run.files.length > 0) {
     if (refactor && !(await confirmRefactor(io, paint))) {
       io.stdout("Cancelled. Nothing was changed.\n");
       return EXIT_CODES.clean;
     }
-    await reviewAll(run, session, io, deps);
+    if (saved) {
+      const outcomes = await replayPlan(saved, run, deps.adapters);
+      for (const outcome of outcomes) await session.review(outcome);
+    } else await reviewAll(run, session, io, deps, state, options.refresh);
   }
-  return session.finish();
+  const exitCode = session.finish();
+  await state?.flush();
+  return exitCode;
 }
 
 async function confirmRefactor(io: CliIo, paint: Paint): Promise<boolean> {
@@ -113,20 +143,35 @@ async function reviewAll(
   session: FixSession,
   io: CliIo,
   deps: CommandDeps,
+  state?: ReviewState,
+  refresh = false,
 ): Promise<void> {
-  const provider = deps.createProvider(run.config, io);
+  const cached = new Map<string, FileOutcome>();
+  if (state && !refresh)
+    for (const file of run.files) {
+      const outcome = await state.lookup(file);
+      if (outcome) cached.set(file.path, outcome);
+    }
+  const provider =
+    cached.size < run.files.length
+      ? deps.createProvider(run.config, io)
+      : undefined;
   const runsTests =
     run.config.mode === "refactor" && run.config.testCommand !== null;
-  const pipelineDeps: PipelineDeps = {
-    provider,
-    adapters: deps.adapters,
-    runTests: runsTests
-      ? createFileSwapTestRunner({ rootDir: run.rootDir })
-      : undefined,
-  };
-  io.stderr(
-    `Processing ${describeRun(run.files.length, provider, run.config)}...\n`,
-  );
+  const pipelineDeps: PipelineDeps | undefined =
+    provider === undefined
+      ? undefined
+      : {
+          provider,
+          adapters: deps.adapters,
+          runTests: runsTests
+            ? createFileSwapTestRunner({ rootDir: run.rootDir })
+            : undefined,
+        };
+  if (provider)
+    io.stderr(
+      `Processing ${describeRun(run.files.length, provider, run.config)}...\n`,
+    );
   // Tests see the whole project with one rewritten file swapped in, so
   // files must then be processed, reviewed and written one at a time.
   const concurrency = runsTests ? 1 : deps.concurrency;
@@ -137,7 +182,11 @@ async function reviewAll(
     (file) =>
       session.stopped
         ? Promise.resolve(undefined)
-        : processCollectedFile(file, run.config, pipelineDeps),
+        : cached.has(file.path)
+          ? Promise.resolve(cached.get(file.path))
+          : pipelineDeps
+            ? processCollectedFile(file, run.config, pipelineDeps)
+            : Promise.resolve(undefined),
     async (outcome) => {
       if (outcome === undefined) return;
       reviewed.add(outcome.file.path);
@@ -168,6 +217,7 @@ class FixSession {
     private readonly paint: Paint,
     private readonly yes: boolean,
     private readonly adapters: readonly LanguageAdapter[],
+    private readonly state?: ReviewState,
   ) {}
 
   addSkips(skips: readonly Skip[]): void {
@@ -199,6 +249,7 @@ class FixSession {
       // Nothing to write, but notes (such as discarded comments) still show.
       if (preview !== "") this.io.stdout(`${preview}\n`);
       this.unchanged.push(result.path);
+      await this.state?.remember(file, result, result.originalCode, [], []);
       return;
     }
 
@@ -218,15 +269,30 @@ class FixSession {
       result,
       accepted || !hasChanges,
     );
-    const finalCode = await this.withSuggestions(
+    const applied = await this.withSuggestions(
       result.path,
       base,
-      suggestions,
+      suggestions.accepted,
     );
+    const finalCode = applied.code;
+    let written = true;
     if (finalCode !== result.originalCode) {
-      await this.write(result, file.absolutePath, finalCode);
+      written = await this.write(result, file.absolutePath, finalCode);
     } else if (!hasChanges) {
       this.unchanged.push(result.path);
+    }
+    if (
+      written &&
+      (decision === "accept" || decision === "reject" || !hasChanges)
+    ) {
+      const resolved = new Set([...applied.applied, ...suggestions.rejected]);
+      await this.state?.remember(
+        file,
+        result,
+        finalCode,
+        result.commentSuggestions.filter((s) => !resolved.has(s)),
+        suggestions.rejected,
+      );
     }
   }
 
@@ -250,22 +316,28 @@ class FixSession {
   private async chooseSuggestions(
     result: FileResult,
     offer: boolean,
-  ): Promise<ExistingCommentSuggestion[]> {
+  ): Promise<{
+    accepted: ExistingCommentSuggestion[];
+    rejected: ExistingCommentSuggestion[];
+  }> {
+    const choices: {
+      accepted: ExistingCommentSuggestion[];
+      rejected: ExistingCommentSuggestion[];
+    } = { accepted: [], rejected: [] };
     const suggestions = result.commentSuggestions;
-    if (suggestions.length === 0) return [];
+    if (suggestions.length === 0) return choices;
     if (this.yes) {
       this.io.stdout(
         `Not applied: ${suggestions.length} suggested rewrite(s) of existing comments in ${result.path}. --yes never edits existing comments; run without --yes to review them.\n\n`,
       );
-      return [];
+      return choices;
     }
     if (!offer) {
       this.io.stdout(
         `Not offered: ${suggestions.length} suggested rewrite(s) of existing comments, because the changes to ${result.path} were not applied.\n\n`,
       );
-      return [];
+      return choices;
     }
-    const accepted: ExistingCommentSuggestion[] = [];
     for (const [index, suggestion] of suggestions.entries()) {
       const position = { index: index + 1, total: suggestions.length };
       this.io.stdout(
@@ -279,21 +351,22 @@ class FixSession {
           q: "quit",
         },
       );
-      if (answer === "accept") accepted.push(suggestion);
+      if (answer === "accept") choices.accepted.push(suggestion);
+      if (answer === "reject") choices.rejected.push(suggestion);
       if (answer === "quit") {
         this.stopped = true;
         break;
       }
     }
-    return accepted;
+    return choices;
   }
 
   private async withSuggestions(
     path: string,
     code: string,
     suggestions: readonly ExistingCommentSuggestion[],
-  ): Promise<string> {
-    if (suggestions.length === 0) return code;
+  ): Promise<Awaited<ReturnType<typeof applyCommentSuggestions>>> {
+    if (suggestions.length === 0) return { code, applied: [], notApplied: [] };
     const applied = await applyCommentSuggestions(
       path,
       code,
@@ -305,14 +378,14 @@ class FixSession {
         `Could not apply the suggestion for line ${suggestion.line}: ${reason}.\n`,
       );
     }
-    return applied.code;
+    return applied;
   }
 
   private async write(
     result: FileResult,
     absolutePath: string,
     code: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const outcome = await writeSourceFile(
       absolutePath,
       code,
@@ -321,11 +394,13 @@ class FixSession {
     if (outcome.ok) {
       this.written.push(result.path);
       this.io.stdout(`${this.paint("green", `Wrote ${result.path}`)}\n\n`);
+      return true;
     } else {
       this.failures.push({
         path: result.path,
         reason: `not written: ${outcome.reason}`,
       });
+      return false;
     }
   }
 

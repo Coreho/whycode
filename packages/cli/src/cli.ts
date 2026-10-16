@@ -55,6 +55,13 @@ Options:
                               formatter (by default WhyCode only uses a formatter the
                               project has set up). Pass the same to prompt, preview, write.
   --no-format                 Never format; only add comments.
+  --save-plan <file>          check: save the AI's comment plans (no source code), so that
+                              fix --plan <file> applies exactly what check showed with no
+                              new model request; changed files are refused.
+  --review-state <file>       check/fix: opt in to remembering reviews (hashes and pending
+                              suggestions only), so unchanged reviewed files make no model
+                              calls and rejected suggestions stay rejected. --refresh
+                              ignores the remembered reviews for this run.
   -y, --yes                   fix: apply every file's changes without asking. Existing
                               comments are still never edited. Not allowed with --refactor.
   --refactor                  fix: let the AI rewrite the code. Logic WILL change; asks
@@ -83,7 +90,16 @@ export async function runCli(
         io.stderr(`whycode: ${args.message}\n`);
         return EXIT_CODES.error;
       case "check":
-        return await runCheck(args.paths, args.overrides, io, deps, args.scope);
+        return await runCheck(
+          args.paths,
+          args.overrides,
+          io,
+          deps,
+          args.scope,
+          args.savePlan,
+          args.reviewState,
+          args.refresh,
+        );
       case "fix":
         return await runFix(args.paths, args, io, deps);
       case "prompt":

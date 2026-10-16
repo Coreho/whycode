@@ -79,19 +79,23 @@ its npm page.
     and your `testCommand` result with each diff, and can't be combined with
     `--yes`.
 
-| Flag                      | Effect                                                  |
-| ------------------------- | ------------------------------------------------------- |
-| `--comment-level <level>` | `light` (default), `medium` or `heavy`                  |
-| `--provider <name>`       | `anthropic` (default) or `openrouter`                   |
-| `--model <id>`            | Claude model, default `claude-sonnet-5-5`               |
-| `--staged`                | Only files staged in git                                |
-| `--diff <ref>`            | Only files changed since the branch left `<ref>`        |
-| `--format`                | Format even if the project hasn't adopted the formatter |
-| `--no-format`             | Never format; only add comments                         |
-| `-y`, `--yes`             | `fix` only: accept every file's changes                 |
-| `--refactor`              | `fix` only: let the AI rewrite the code                 |
-| `-h`, `--help`            | Usage                                                   |
-| `-v`, `--version`         | Version                                                 |
+| Flag                      | Effect                                                       |
+| ------------------------- | ------------------------------------------------------------ |
+| `--comment-level <level>` | `light` (default), `medium` or `heavy`                       |
+| `--provider <name>`       | `anthropic` (default) or `openrouter`                        |
+| `--model <id>`            | Claude model, default `claude-sonnet-5-5`                    |
+| `--staged`                | Only files staged in git                                     |
+| `--diff <ref>`            | Only files changed since the branch left `<ref>`             |
+| `--format`                | Format even if the project hasn't adopted the formatter      |
+| `--no-format`             | Never format; only add comments                              |
+| `--save-plan <file>`      | `check` only: save the comment plans for `fix --plan <file>` |
+| `--plan <file>`           | `fix` only: apply a saved plan, no model request             |
+| `--review-state <file>`   | Opt in to remembering reviews (see below)                    |
+| `--refresh`               | With `--review-state`: ignore remembered reviews this run    |
+| `-y`, `--yes`             | `fix` only: accept every file's changes                      |
+| `--refactor`              | `fix` only: let the AI rewrite the code                      |
+| `-h`, `--help`            | Usage                                                        |
+| `-v`, `--version`         | Version                                                      |
 
 **Verdicts.** Every processed file gets a one-line verdict, worded the same in
 every front-end:
@@ -118,6 +122,24 @@ covered under their new name. Whole files are processed, not just the changed
 lines, and the usual collection rules still apply. With either flag the paths
 are optional and only narrow the changes. `fix --staged` refuses a file that
 also has unstaged edits, so they can never be overwritten.
+
+**Review once, apply later.** `whycode check --save-plan review.json` saves the
+AI's comment plan for each file, and `whycode fix --plan review.json` applies
+exactly those plans with no new model request, showing the same diffs `check`
+showed. The plan holds the validated replies and hashes only: no copy of the
+source beyond the existing comments that suggestions quote. If a file, the
+config, the prompt, the formatting or WhyCode itself changed since the plan
+was saved, `fix` refuses before writing anything; run `check --save-plan`
+again. A plan file is never overwritten.
+
+**Remember reviews (opt-in).** By default WhyCode stores nothing. With
+`--review-state <file>`, `fix` records each reviewed file's hash, its pending
+suggestions for existing comments and the ones you rejected; later `check` or
+`fix` runs with the same file skip the AI for files that haven't changed, keep
+showing pending suggestions, and don't bring rejected ones back. Any change to
+the file, the config, the prompt or WhyCode invalidates an entry, and
+`--refresh` ignores the remembered reviews for one run. To reset, delete the
+file. Keep it out of version control if your comments are private.
 
 **Exit codes:** `check` exits 0 when every file is clean, and 1 when a file
 would change or had its comments discarded, so CI can use it as a gate.

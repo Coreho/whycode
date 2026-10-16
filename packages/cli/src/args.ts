@@ -11,6 +11,9 @@ export type ParsedArgs =
       paths: string[];
       overrides: ConfigOverrides;
       scope?: ChangeScope;
+      savePlan?: string;
+      reviewState?: string;
+      refresh?: boolean;
     }
   | {
       kind: "fix";
@@ -18,6 +21,9 @@ export type ParsedArgs =
       overrides: ConfigOverrides;
       yes: boolean;
       scope?: ChangeScope;
+      plan?: string;
+      reviewState?: string;
+      refresh?: boolean;
     }
   | {
       kind: "prompt";
@@ -43,6 +49,9 @@ const OPTIONS = {
   refactor: { type: "boolean" },
   yes: { type: "boolean", short: "y" },
   plan: { type: "string" },
+  "save-plan": { type: "string" },
+  "review-state": { type: "string" },
+  refresh: { type: "boolean" },
   fingerprint: { type: "string" },
   "accept-suggestions": { type: "string" },
   list: { type: "boolean" },
@@ -60,6 +69,9 @@ type FlagValues = ReturnType<typeof parseFlags>["values"];
 /** The flags each command accepts, besides --help and --version. */
 const COMMAND_FLAGS = {
   check: [
+    "review-state",
+    "refresh",
+    "save-plan",
     "comment-level",
     "provider",
     "model",
@@ -69,6 +81,9 @@ const COMMAND_FLAGS = {
     "no-format",
   ],
   fix: [
+    "review-state",
+    "refresh",
+    "plan",
     "comment-level",
     "provider",
     "model",
@@ -119,7 +134,7 @@ function parseCommand(
   if (typeof scope === "string") return usageError(scope);
   // With --staged or --diff, the paths only narrow the changed files.
   if (paths.length === 0 && scope !== undefined) paths.push(".");
-  if (paths.length === 0) {
+  if (paths.length === 0 && !(command === "fix" && values.plan !== undefined)) {
     return usageError(
       `"whycode ${command}" needs at least one file or directory, e.g. "whycode ${command} src" (or "." for the whole project).`,
     );
@@ -129,7 +144,35 @@ function parseCommand(
   }
   const overrides = parseOverrides(values);
   if (typeof overrides === "string") return usageError(overrides);
-  if (command === "check") return { kind: "check", paths, overrides, scope };
+  const persistence = {
+    ...(values["review-state"] === undefined
+      ? {}
+      : { reviewState: values["review-state"] }),
+    ...(values.refresh === undefined ? {} : { refresh: values.refresh }),
+  };
+  if (values.refresh && values["review-state"] === undefined)
+    return usageError("--refresh requires --review-state <file>.");
+  if (values["review-state"] !== undefined && values.refactor)
+    return usageError("Review state only supports safe mode.");
+  if (values["review-state"] !== undefined && values["save-plan"] !== undefined)
+    return usageError(
+      "Use --save-plan for a fresh review, or --review-state to reuse completed reviews; these check options cannot be combined.",
+    );
+  if (values.plan !== undefined && values.refresh)
+    return usageError(
+      "--refresh cannot regenerate a saved plan; run check --save-plan again.",
+    );
+  if (command === "check")
+    return {
+      kind: "check",
+      ...persistence,
+      paths,
+      overrides,
+      scope,
+      ...(values["save-plan"] === undefined
+        ? {}
+        : { savePlan: values["save-plan"] }),
+    };
   if (command === "prompt") {
     return { kind: "prompt", paths, overrides, list: values.list === true };
   }
@@ -141,7 +184,17 @@ function parseCommand(
     );
   }
   if (values.refactor === true) overrides.mode = "refactor";
-  return { kind: "fix", paths, overrides, yes, scope };
+  if (values.plan !== undefined && values.refactor === true)
+    return usageError("Saved plans only support safe mode.");
+  return {
+    kind: "fix",
+    ...persistence,
+    paths,
+    overrides,
+    yes,
+    scope,
+    ...(values.plan === undefined ? {} : { plan: values.plan }),
+  };
 }
 
 /** --staged or --diff <ref>: which changed files to cover, if either is given. */

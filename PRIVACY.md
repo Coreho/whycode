@@ -164,8 +164,20 @@ back.
 
 ## What WhyCode stores
 
-Nothing. WhyCode keeps no cache, no logs, no history and no usage data, and it
-never writes its own config. Results live in memory for one run and are
+Nothing, unless you ask it to. WhyCode keeps no cache, no logs and no usage
+data, and it never writes its own config. Two opt-in files exist, both written
+only where you name them:
+
+- `whycode check --save-plan <file>` saves the AI's comment plans and hashes
+  (of the source, the request, the config and WhyCode itself). It contains
+  the comments the AI proposed and the existing comments its suggestions
+  quote, but no other source code. It never overwrites an existing file.
+- `--review-state <file>` remembers reviewed files: their hashes, the pending
+  suggestions for existing comments and the IDs of the ones you rejected. No
+  source code. Delete the file to reset it.
+
+Both are created readable only by your user account where the system
+supports it. Results live in memory for one run and are
 printed to your terminal.
 
 It writes to your files only in these cases:
