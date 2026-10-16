@@ -63,6 +63,25 @@ describe("systemPrompt", () => {
     expect(prompt).toContain("doesn't restate names or types");
   });
 
+  it("keeps the light level uncluttered, with summaries only where needed", () => {
+    const light = systemPrompt("light");
+    expect(light).toContain("Keep the code uncluttered");
+    expect(light).toContain(
+      "only when its name and signature don't already make its purpose clear",
+    );
+    expect(light).toContain("fewer, better comments");
+    // Medium still summarizes every function, so the levels stay distinct.
+    expect(systemPrompt("medium")).toContain(
+      "summary above each function, method, and class that lacks one",
+    );
+  });
+
+  it("asks for comments on the first line of the code they describe", () => {
+    expect(systemPrompt("light")).toContain(
+      "Target the first line of the code the comment describes",
+    );
+  });
+
   it("warns against the placements that verification rejects", () => {
     const prompt = systemPrompt("medium");
     expect(prompt).toContain(

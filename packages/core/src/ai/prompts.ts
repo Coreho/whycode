@@ -23,11 +23,13 @@ const GOOD_COMMENTS = `What makes a good comment:
 - It is short. One sentence is usually enough; use two or three lines only when the reasoning needs them.
 - It is plain and factual, written the way a careful engineer explains code to a colleague. Skip filler such as "This function..." or "Here we...".
 - It doesn't restate names or types ("Increment the counter", "Returns a string").
-- It doesn't invent reasons. If the reason behind something isn't evident from the code, describe its purpose instead of guessing at a motive.`;
+- It doesn't invent reasons. If the reason behind something isn't evident from the code, describe its purpose instead of guessing at a motive.
+- It earns its place. When a reader would learn nothing new from a comment, leave it out: fewer, better comments keep the code easy to read.`;
 
 const PLACEMENT = `Where comments go:
 - Each insertion is placed above the line number you give, at that line's indentation. Line numbers refer to the numbered code in the request.
-- Never target a line inside a multi-line string, template literal, docstring, or JSX/HTML text. A comment there would become part of the text, so WhyCode rejects it and the file then gets no comments at all.
+- Target the first line of the code the comment describes (for a group of statements, the first statement), never a line before it.
+- Never target a line inside a multi-line string, template literal, docstring, or JSX/HTML text. A comment there would become part of the text, so WhyCode drops it.
 - Never target the line right after a line that ends with a backslash line continuation.
 - Leave existing comments and docstrings alone. If something already has a summary comment or docstring, don't add another.
 - Write comment text without comment markers (no #, //, or /*). WhyCode adds them.`;
@@ -37,9 +39,9 @@ List an existing comment in existingCommentSuggestions only when it is wrong, mi
 
 const LEVEL_GUIDANCE: Readonly<Record<CommentLevel, string>> = {
   light: `Comment level: light.
-Add a one-line summary above each function, method, and class that lacks one, saying what it is for rather than how it works. Inside function bodies, comment only where the reason behind the code isn't obvious: workarounds, ordering that matters, magic numbers, deliberate trade-offs, surprising edge cases. Most lines get no comment.`,
+Keep the code uncluttered: a typical file needs only a few comments, and many functions need none. Add a one-line summary above a function, method, or class only when its name and signature don't already make its purpose clear, saying what it is for rather than how it works; skip it for self-explanatory code such as small helpers, simple getters, event handlers, and straightforward components. Inside function bodies, comment only where the reason behind the code isn't obvious: workarounds, ordering that matters, magic numbers, deliberate trade-offs, surprising edge cases. Most lines get no comment.`,
   medium: `Comment level: medium.
-Do everything the light level does. Also put a short note above each logical block inside a function (for example setup, validation, the main loop, cleanup), so a reader can skim its structure. Still skip lines whose purpose is obvious.`,
+Add a one-line summary above each function, method, and class that lacks one, saying what it is for rather than how it works, and comment non-obvious reasons as at the light level. Also put a short note above each logical block inside a function (for example setup, validation, the main loop, cleanup), so a reader can skim its structure. Still skip lines whose purpose is obvious.`,
   heavy: `Comment level: heavy.
 The reader is learning this language or this codebase. Explain nearly every statement or small group of statements: what it does and why it is needed, including language features and library calls a beginner might not know. Keep each comment short and accurate; the goal is understanding, not padding.`,
 };

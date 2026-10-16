@@ -273,11 +273,11 @@ the same rules, and skipped paths are always listed with the reason.
 
 ## Comment levels
 
-| Level             | What you get                                                                              |
-| ----------------- | ----------------------------------------------------------------------------------------- |
-| `light` (default) | A summary above each function and class, plus comments only where the "why" isn't obvious |
-| `medium`          | Everything in `light`, plus a short note for each logical block inside functions          |
-| `heavy`           | Near line-by-line explanation, for people learning the language or the codebase           |
+| Level             | What you get                                                                                                                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `light` (default) | Uncluttered: a summary only where a function's or class's name and signature don't already say what it's for, plus comments only where the "why" isn't obvious. Many functions get no comment |
+| `medium`          | A summary above every function and class, the "why" comments, and a short note for each logical block inside functions                                                                        |
+| `heavy`           | Near line-by-line explanation, for people learning the language or the codebase                                                                                                               |
 
 At every level the prompts ask for comments that explain why rather than
 restate the code.
