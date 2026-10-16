@@ -1,7 +1,7 @@
 // Inserts AI-written comments as new lines above their target lines.
 // Existing lines are never modified; only whole comment lines are added.
 import type { CommentInsertion } from "../ai/comment-plan.js";
-import { countLines } from "../text.js";
+import { countLines, withoutHiddenCharacters } from "../text.js";
 
 export interface InsertionResult {
   code: string;
@@ -184,19 +184,6 @@ function buildLineMap(
     lineMap.push(line + shift);
   }
   return lineMap;
-}
-
-// Control characters (other than tab and line breaks) could hide text or
-// rewrite the terminal when a preview is shown, and Unicode bidirectional
-// controls can make a comment display differently from how the compiler
-// reads the code around it ("Trojan Source"). None of them reaches a comment.
-const HIDDEN_CHARACTERS =
-  // eslint-disable-next-line no-control-regex -- matching control characters is the point
-  /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
-
-/** Removes control and bidirectional-override characters from AI text. */
-export function withoutHiddenCharacters(text: string): string {
-  return text.replace(HIDDEN_CHARACTERS, "");
 }
 
 /** Turns AI-written text into comment lines with the given marker and indent. */

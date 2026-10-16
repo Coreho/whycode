@@ -469,7 +469,9 @@ and returns a result. It never writes to disk.
    change the tokens are dropped with a warning naming their line, and the
    rest are inserted, formatted and verified once more. If that still fails,
    the AI changes are thrown away and only the formatting is kept. The
-   formatter runs at most three times per file.
+   formatter runs at most three times per file. Warnings quote the first
+   differing token on one line: line breaks and hidden characters appear as
+   escapes, and a long token is cut to the part around the difference.
 8. **Return** the new code (with the original line endings and byte-order
    mark), a unified diff, the suggestions for existing comments, and any
    warnings.

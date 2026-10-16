@@ -15,7 +15,7 @@ import {
   applyCommentSuggestions,
   createFileSwapTestRunner,
   fileVerdict,
-  withoutHiddenCharacters,
+  visibleText,
   writeSourceFile,
 } from "@whycode/core";
 import { relative, resolve, sep } from "node:path";
@@ -170,18 +170,7 @@ export function describeTestCommand(
   if (command === null) {
     return "No testCommand is set in .whycoderc.json, so no tests will run.\n";
   }
-  return `After each rewrite, this testCommand from .whycoderc.json runs in a shell in ${rootDir}:\n  ${visible(command)}\n`;
-}
-
-/** Text with every line break and hidden character shown as a \u{...} escape. */
-function visible(text: string): string {
-  return [...text]
-    .map((char) =>
-      char === "\n" || char === "\r" || withoutHiddenCharacters(char) === ""
-        ? `\\u{${(char.codePointAt(0) ?? 0).toString(16)}}`
-        : char,
-    )
-    .join("");
+  return `After each rewrite, this testCommand from .whycoderc.json runs in a shell in ${rootDir}:\n  ${visibleText(command)}\n`;
 }
 
 async function reviewAll(

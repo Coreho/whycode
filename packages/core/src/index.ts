@@ -116,7 +116,7 @@ export type { ChangedFiles, ChangeScope } from "./files/git-changes.js";
 export { readSourceFile, writeSourceFile } from "./files/source-file.js";
 export type { SourceRead, SourceWrite } from "./files/source-file.js";
 export { applyCommentSuggestions } from "./comments/suggestions.js";
-export { withoutHiddenCharacters } from "./comments/insert.js";
+export { visibleText, withoutHiddenCharacters } from "./text.js";
 export type { SuggestionsResult } from "./comments/suggestions.js";
 
 export { createUnifiedDiff } from "./diff.js";

@@ -15,12 +15,8 @@ import type { LanguageAdapter } from "../languages/adapter.js";
 import { findAdapterForPath } from "../languages/adapter.js";
 import { findCommentOnlyLanguage } from "../languages/fallback.js";
 import { compareTokenStreams } from "../verify.js";
-import {
-  cleanCommentText,
-  LINE_BREAKS,
-  toCommentLines,
-  withoutHiddenCharacters,
-} from "./insert.js";
+import { cleanCommentText, LINE_BREAKS, toCommentLines } from "./insert.js";
+import { withoutHiddenCharacters } from "../text.js";
 
 export interface SuggestionsResult {
   /** The code with every applicable suggestion applied. */

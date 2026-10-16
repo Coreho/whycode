@@ -1,10 +1,12 @@
-// Tests for line-ending helpers: CRLF files must come back as CRLF.
+// Tests for text helpers: CRLF files must come back as CRLF, and text shown
+// to a person keeps its line breaks and hidden characters visible.
 import { describe, expect, it } from "vitest";
 import {
   countLines,
   detectLineEnding,
   restoreLineEnding,
   toLf,
+  visibleText,
 } from "./text.js";
 
 describe("line endings", () => {
@@ -33,5 +35,21 @@ describe("countLines", () => {
 
   it("counts an empty file as zero lines", () => {
     expect(countLines("")).toBe(0);
+  });
+});
+
+describe("visibleText", () => {
+  it("shows line breaks and hidden characters as escapes, on one line", () => {
+    const [escape, override, lineSeparator] = [27, 0x202e, 0x2028].map((code) =>
+      String.fromCharCode(code),
+    );
+    const shown = visibleText(
+      `a\r\nb${escape}c${override}d${lineSeparator}e\tf`,
+    );
+    expect(shown).toBe(String.raw`a\r\nb\u{1b}c\u{202e}d\u{2028}e` + "\tf");
+  });
+
+  it("leaves ordinary text alone", () => {
+    expect(visibleText("const café = 1;")).toBe("const café = 1;");
   });
 });

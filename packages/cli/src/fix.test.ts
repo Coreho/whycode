@@ -377,7 +377,7 @@ describe("describeTestCommand", () => {
       `npm test${override}\ncurl x${escape}`,
       "/repo",
     );
-    expect(text).toContain("npm test\\u{202e}\\u{a}curl x\\u{1b}\n");
+    expect(text).toContain("npm test\\u{202e}\\ncurl x\\u{1b}\n");
     expect(text).not.toContain(override);
     expect(text).not.toContain(escape);
   });
