@@ -405,7 +405,11 @@ To keep the result uncluttered, a comment aimed at a line that is already a
 comment is dropped, since that code is already explained. A tool directive is
 the exception (`// eslint-disable-next-line`, `// @ts-expect-error`, `//go:build`,
 `# type: ignore` and the like): the explanation goes above it, never between
-the directive and the code it controls. Filler text such as "Placeholder",
+the directive and the code it controls. A comment aimed at the line right after a
+next-line directive (`@ts-expect-error`, `eslint-disable-next-line`,
+`prettier-ignore`, `pylint: disable-next` and the like) is moved above the
+directive for the same reason; otherwise the directive would cover the comment
+and its suppressed error would come back. Filler text such as "Placeholder",
 "TODO" or "..." is dropped too. Each dropped comment is listed in the notes.
 
 ## How it works

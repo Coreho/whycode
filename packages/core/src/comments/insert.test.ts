@@ -205,6 +205,35 @@ describe("applyInsertions", () => {
     }
   });
 
+  it("moves a comment aimed below a next-line directive above it", () => {
+    const ts = applyInsertions(
+      "// @ts-expect-error legacy API\nlegacy.call();\n",
+      [above(2, "Old API without types.")],
+      "//",
+    );
+    expect(ts.code).toBe(
+      "// Old API without types.\n// @ts-expect-error legacy API\nlegacy.call();\n",
+    );
+    expect(ts.warnings).toEqual([]);
+
+    const python = applyInsertions(
+      "# pylint: disable-next=invalid-name\nX = 1\n",
+      [above(2, "Kept for compatibility.")],
+      "#",
+    );
+    expect(python.code).toBe(
+      "# Kept for compatibility.\n# pylint: disable-next=invalid-name\nX = 1\n",
+    );
+  });
+
+  it("moves it above a whole stack of next-line directives", () => {
+    const code =
+      "  // eslint-disable-next-line no-console\n  // @ts-ignore\n  log(x);\n";
+    const result = applyInsertions(code, [above(3, "Debug output.")], "//");
+    expect(result.code).toBe(`  // Debug output.\n${code}`);
+    expect(result.lineMap).toEqual([2, 3, 4]);
+  });
+
   it("never changes existing lines", () => {
     const code = "  first\nsecond  \n\tthird";
     const result = applyInsertions(

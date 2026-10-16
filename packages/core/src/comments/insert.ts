@@ -26,14 +26,21 @@ export function applyInsertions(
   const lineCount = countLines(code);
   const warnings: string[] = [];
 
-  const placeable = insertions.filter((insertion) => {
-    const problem =
-      fillerProblem(insertion.text, lineComment) ??
-      placementProblem(insertion.line, lines, lineCount, lineComment);
-    if (problem === undefined) return true;
-    warnings.push(`Dropped a comment for line ${insertion.line}: ${problem}.`);
-    return false;
-  });
+  const placeable = insertions
+    .map((insertion) => ({
+      ...insertion,
+      line: aboveNextLineDirectives(insertion.line, lines),
+    }))
+    .filter((insertion) => {
+      const problem =
+        fillerProblem(insertion.text, lineComment) ??
+        placementProblem(insertion.line, lines, lineCount, lineComment);
+      if (problem === undefined) return true;
+      warnings.push(
+        `Dropped a comment for line ${insertion.line}: ${problem}.`,
+      );
+      return false;
+    });
 
   const commentLinesByTarget = groupCommentLines(placeable, lines, lineComment);
   // Splice from the bottom up so earlier target line numbers stay valid.
@@ -85,12 +92,36 @@ function placementProblem(
   return undefined;
 }
 
-// Comments that instruct a tool about the code below them.
+// Directives that apply to the line right after them: a comment inserted in
+// between would be what they cover, and the suppressed error would return.
+const NEXT_LINE_DIRECTIVE =
+  /^(\/\/|#|\/\*)\s*(@ts-expect-error|@ts-ignore|eslint-disable-next-line|prettier-ignore|biome-ignore|deno-lint-ignore|istanbul ignore next|c8 ignore next|noinspection|nolint|pylint:\s*disable-next|stylelint-disable-next-line)/;
+
+// Other comments that instruct a tool about the code below them.
 const DIRECTIVE =
-  /^(\/\/|#)\s*(go:|\+build|eslint|@ts-|prettier-ignore|nolint|pylint:|type:|noqa|biome-ignore|istanbul|c8 |region|endregion|#?pragma)/;
+  /^(\/\/|#)\s*(go:|\+build|eslint|type:|noqa|region|endregion|#?pragma)/;
 
 function isDirective(line: string): boolean {
-  return DIRECTIVE.test(line.trimStart());
+  const text = line.trimStart();
+  return DIRECTIVE.test(text) || NEXT_LINE_DIRECTIVE.test(text);
+}
+
+/**
+ * Moves a comment aimed just below a next-line directive (or a stack of
+ * them) up above the directives, so they keep applying to their code.
+ */
+function aboveNextLineDirectives(
+  line: number,
+  lines: readonly string[],
+): number {
+  let target = line;
+  while (
+    target > 1 &&
+    NEXT_LINE_DIRECTIVE.test((lines[target - 2] ?? "").trimStart())
+  ) {
+    target -= 1;
+  }
+  return target;
 }
 
 /** True for a line that starts with a comment (line or block style). */
