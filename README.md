@@ -331,20 +331,25 @@ comment lines.
 is the project's choice, so by default a file is formatted only when its
 project has adopted that language's formatter:
 
-| Formatter          | Counts as adopted when the file's folder or one above it has                                                              |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| Prettier           | a Prettier config (`.prettierrc*`, `prettier.config.*`, a `"prettier"` key in `package.json`) or Prettier as a dependency |
-| Ruff               | `ruff.toml`, `.ruff.toml`, or `[tool.ruff]` or `[tool.black]` in `pyproject.toml` (Ruff's style is Black's)               |
-| CSharpier          | `.csharpierrc*`, CSharpier in `.config/dotnet-tools.json`, `Directory.Build.props` or a `.csproj`                         |
-| google-java-format | google-java-format in `build.gradle`, `build.gradle.kts` or `pom.xml` (for example through Spotless)                      |
-| gofmt, rustfmt     | always: they are the languages' standard                                                                                  |
+| Formatter          | Counts as adopted when the file's folder, or one above it within the repository, has                                                                 |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prettier           | a Prettier config (`.prettierrc*`, `prettier.config.*`, a top-level `"prettier"` key in `package.json`) or Prettier in `package.json`'s dependencies |
+| Ruff               | `ruff.toml`, `.ruff.toml`, or a `[tool.ruff]` section in `pyproject.toml` (Black settings alone don't count: Ruff doesn't read them)                 |
+| CSharpier          | `.csharpierrc*`, CSharpier in `.config/dotnet-tools.json`, `Directory.Build.props` or a `.csproj`                                                    |
+| google-java-format | google-java-format in `build.gradle`, `build.gradle.kts` or `pom.xml` (for example through Spotless)                                                 |
+| gofmt, rustfmt     | always: they are the languages' standard                                                                                                             |
+
+The search stops at the repository's top folder (the one with `.git`), so a
+config in a folder above your project never decides its style. A malformed
+`package.json` skips formatting with a note rather than guessing.
 
 Otherwise WhyCode adds comments without reformatting the file (still verified)
 and says so, instead of burying a few comments under hundreds of lines of
 reformatting. `--format` (or `"format": "always"`) formats anyway, and
 `--no-format` (`"never"`) never formats. The agent commands take the same
 flags, and `prompt`, `preview` and `write` must agree, because formatting
-moves the line numbers a plan refers to.
+moves the line numbers a plan refers to; the commands `prompt` and `preview`
+print for the next step carry the flag along.
 
 Formatters use the project's own settings: Prettier reads `.prettierrc` and
 `.editorconfig`, Ruff reads `pyproject.toml` or `ruff.toml`, rustfmt reads

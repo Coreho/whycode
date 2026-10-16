@@ -376,8 +376,14 @@ async function planFormatting(
   if (config.format === "always" || formatter === undefined) {
     return { enabled: true };
   }
-  if (await formatter.isAdopted(input.absolutePath ?? input.path)) {
-    return { enabled: true };
+  try {
+    if (await formatter.isAdopted(input.absolutePath ?? input.path))
+      return { enabled: true };
+  } catch (error) {
+    return {
+      enabled: false,
+      skippedNote: `Formatting was skipped: could not determine formatter adoption (${errorMessage(error)}).`,
+    };
   }
   return {
     enabled: false,

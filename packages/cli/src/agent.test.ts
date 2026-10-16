@@ -59,6 +59,35 @@ describe("agent commands", () => {
 
   const run = (...argv: string[]) => runCli(argv, io(), deps);
 
+  it.each(["--format", "--no-format"])(
+    "carries %s through printed agent instructions",
+    async (flag) => {
+      await files({
+        "a.toy": " run\n",
+        ".whycoderc.json": JSON.stringify({
+          format: flag === "--format" ? "never" : "always",
+        }),
+      });
+      expect(await run("prompt", "a.toy", flag)).toBe(0);
+      expect(stdout).toMatch(new RegExp(`whycode preview[^\\n]*${flag}`));
+      stdout = "";
+      stdin = commentPlanReply({
+        insertions: [{ line: 1, position: "above", text: "Begin." }],
+      });
+      expect(await run("preview", "a.toy", flag, "--plan", "-")).toBe(0);
+      const command = stdout
+        .split("After the user approves, write it with: ")[1]
+        ?.trim();
+      expect(command).toContain(flag);
+      const argv = command!
+        .replace("whycode ", "")
+        .replace("<the same plan>", "-")
+        .split(" ");
+      expect(await run(...argv)).toBe(0);
+      expect(await read("a.toy")).toContain("# Begin.");
+    },
+  );
+
   const plan = commentPlanReply({
     insertions: [{ line: 2, position: "above", text: "Shut down." }],
     existingCommentSuggestions: [

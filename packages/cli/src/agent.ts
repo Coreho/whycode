@@ -63,7 +63,7 @@ export async function runPrompt(
       requests.push({ path: file.path, request: captured.request });
     else failures.push({ path: file.path, reason: captured.reason });
   }
-  io.stdout(renderRequests(requests, run, failures));
+  io.stdout(renderRequests(requests, run, failures, request.overrides));
   return failures.length > 0 ? EXIT_CODES.error : EXIT_CODES.clean;
 }
 
@@ -86,10 +86,11 @@ function renderRequests(
   requests: readonly { path: string; request: AIRequest }[],
   run: PreparedRun,
   failures: readonly Skip[],
+  overrides: ConfigOverrides,
 ): string {
   const sections = [
     `WhyCode comment requests for ${requests.length} file(s) (comment level: ${run.config.commentLevel}).`,
-    `For each file, write one JSON comment plan that follows the system prompt and matches the schema, then run: whycode preview <file> --plan <plan file, or - for stdin>`,
+    `For each file, write one JSON comment plan that follows the system prompt and matches the schema, then run: whycode preview <file> --plan <plan file, or - for stdin>${formatFlag(overrides)}`,
   ];
   const first = requests[0]?.request;
   if (first !== undefined) {
@@ -152,13 +153,14 @@ export async function runPreview(
     io.stdout(`${notes}Nothing to write for ${result.path}.\n`);
     return EXIT_CODES.clean;
   }
-  io.stdout(renderAgentPreview(result, paint));
+  io.stdout(renderAgentPreview(result, paint, step.overrides));
   return EXIT_CODES.clean;
 }
 
 function renderAgentPreview(
   result: FileResult,
   paint: ReturnType<typeof painter>,
+  overrides: ConfigOverrides,
 ): string {
   const total = result.commentSuggestions.length;
   const suggestions = result.commentSuggestions.map((suggestion, index) =>
@@ -176,11 +178,19 @@ function renderAgentPreview(
     renderPreview(result, paint),
     ...suggestions,
     `Fingerprint: ${fingerprint}`,
-    `After the user approves, write it with: whycode write ${result.path} --plan <the same plan> --fingerprint ${fingerprint}${accept}`,
+    `After the user approves, write it with: whycode write ${result.path} --plan <the same plan> --fingerprint ${fingerprint}${formatFlag(overrides)}${accept}`,
   ]
     .filter((section) => section !== "")
     .join("\n")
     .concat("\n");
+}
+
+function formatFlag(overrides: ConfigOverrides): string {
+  return overrides.format === "always"
+    ? " --format"
+    : overrides.format === "never"
+      ? " --no-format"
+      : "";
 }
 
 export interface WriteRequest extends AgentStep {
@@ -199,7 +209,7 @@ export async function runWrite(
   if (resultFingerprint(result) !== request.fingerprint) {
     return fail(
       io,
-      `${result.path} or the plan changed since the preview, so nothing was written. Run "whycode preview" again.`,
+      `${result.path}, the plan, or formatting configuration changed since the preview, so nothing was written. Run "whycode preview" again with the same formatting options.`,
     );
   }
   const suggestions = result.commentSuggestions;

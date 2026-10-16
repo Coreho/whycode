@@ -4,7 +4,10 @@
 // exports three adapters.
 import * as prettier from "prettier";
 import type { LanguageAdapter } from "./adapter.js";
-import { prettierAdopted } from "./formatter-adoption.js";
+import {
+  prettierAdopted,
+  projectPrettierConfig,
+} from "./formatter-adoption.js";
 import type { GrammarSpec, TokenRules } from "./tree-sitter.js";
 import { treeSitterTokens } from "./tree-sitter.js";
 
@@ -91,9 +94,15 @@ export async function formatWithPrettier(
   code: string,
   filePath: string,
 ): Promise<{ code: string; formatted: boolean }> {
-  const projectOptions = await prettier.resolveConfig(filePath, {
-    editorconfig: true,
-  });
+  const config = await projectPrettierConfig(filePath);
+  const projectOptions =
+    config === undefined
+      ? {}
+      : await prettier.resolveConfig(filePath, {
+          config,
+          editorconfig: true,
+          useCache: false,
+        });
   const formatted = await prettier.format(code, {
     ...projectOptions,
     filepath: filePath,

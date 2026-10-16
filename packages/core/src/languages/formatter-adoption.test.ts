@@ -56,10 +56,39 @@ describe("formatter adoption", () => {
       "pyproject.toml",
       "[project]\nname='x'\n\n[tool.ruff]\nline-length = 88\n",
     ],
-    ["pyproject.toml", "[tool.black]\nline-length = 88\n"],
-  ])("sees Ruff or Black from %s", async (name, content) => {
+  ])("sees Ruff from %s", async (name, content) => {
     await files({ [name]: content, "pkg/a.py": "" });
     expect(await ruffAdopted(source("pkg/a.py"))).toBe(true);
+  });
+
+  it("does not substitute Ruff for a Black-only project", async () => {
+    await files({
+      "pyproject.toml": "[tool.black]\nskip-string-normalization = true\n",
+    });
+    expect(await ruffAdopted(source("a.py"))).toBe(false);
+  });
+
+  it("does not mistake unrelated manifest keys for Prettier adoption", async () => {
+    await files({ "package.json": '{"customMetadata":{"prettier":false}}' });
+    expect(await prettierAdopted(source("a.js"))).toBe(false);
+  });
+
+  it("reports malformed manifests instead of treating raw text as adoption", async () => {
+    await files({ "package.json": '{"devDependencies":{"prettier":' });
+    await expect(prettierAdopted(source("a.js"))).rejects.toThrow(
+      /package.json/,
+    );
+  });
+
+  it("stops at a nested repository but allows inheritance within a workspace", async () => {
+    await files({
+      ".prettierrc": "{}",
+      "ruff.toml": "",
+      "nested/.git": "gitdir: somewhere",
+    });
+    expect(await prettierAdopted(source("packages/a/a.js"))).toBe(true);
+    expect(await prettierAdopted(source("nested/src/a.js"))).toBe(false);
+    expect(await ruffAdopted(source("nested/src/a.py"))).toBe(false);
   });
 
   it("doesn't count a pyproject.toml without formatter settings", async () => {
