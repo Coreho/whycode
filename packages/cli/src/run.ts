@@ -84,11 +84,22 @@ export async function prepareRun(
   const partial =
     scope?.kind === "staged" ? changes?.partiallyStaged : undefined;
   const isPartial = (file: CollectedFile) => partial?.has(file.path) === true;
-  for (const file of collection.files.filter(isPartial)) {
+  const partialFiles = collection.files.filter(isPartial);
+  for (const file of partialFiles) {
     skips.push({ path: file.path, reason: PARTIALLY_STAGED_REASON });
   }
+  // A pre-commit hook passes these files unchecked, so say so where hook
+  // output shows it, not only in the summary.
+  if (partialFiles.length > 0)
+    io.stderr(partialStagingWarning(partialFiles.length));
   const files = collection.files.filter((file) => !isPartial(file));
   return { rootDir, config, files, skips };
+}
+
+function partialStagingWarning(count: number): string {
+  const files =
+    count === 1 ? "1 staged file was" : `${count} staged files were`;
+  return `whycode: warning: ${files} not checked because of unstaged edits, so what you commit there is unchecked. Stage or stash those edits first.\n`;
 }
 
 export type FileOutcome =

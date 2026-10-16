@@ -133,6 +133,24 @@ describe("check and fix on changed files", () => {
     expect(stdout).toContain(
       "has unstaged changes as well as staged ones; stage or stash them first",
     );
+    expect(stderr).toContain(
+      "whycode: warning: 1 staged file was not checked because of unstaged edits",
+    );
+  });
+
+  it("warns on stderr when every staged file was skipped, without changing the exit code", async () => {
+    await write("a.toy", "a\nstaged\n");
+    await write("b.toy", "b\nstaged\n");
+    git("add", "a.toy", "b.toy");
+    await write("a.toy", "a\nstaged\nunstaged\n");
+    await write("b.toy", "b\nstaged\nunstaged\n");
+
+    const code = await runCli(["check", "--staged"], io(), deps());
+    expect(code).toBe(0);
+    expect(provider.requests).toHaveLength(0);
+    expect(stderr).toContain(
+      "whycode: warning: 2 staged files were not checked because of unstaged edits, so what you commit there is unchecked. Stage or stash those edits first.\n",
+    );
   });
 
   it("fix --staged names the git add command for the files it wrote, without staging them", async () => {

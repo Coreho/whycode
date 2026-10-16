@@ -128,28 +128,24 @@ for (const [mode, adapter, installed] of [
       ["interpolated verbatim string", /^interpolated verbatim continues/],
       ["raw string", /^\s*raw continues/],
       ["interpolated raw string", /^\s*interpolated raw continues/],
-    ])(
-      "discards a comment inside a %s",
-      async (_kind, target) => {
-        const original = await readFile(
-          join(FIXTURES, "verification.cs"),
-          "utf8",
-        );
-        const result = await runFixture(target, adapter);
-        expect(result.verification).toBe("failed");
-        expect(result.outputCode).not.toContain(PROBE);
-        expect(toLf(result.outputCode)).toBe(
-          toLf(
-            (await adapter.format(original, join(FIXTURES, "verification.cs")))
-              .code,
-          ),
-        );
-        expect(result.warnings.join("\n")).toMatch(
-          /tokens changed \(token \d+: expected/,
-        );
-      },
-      15_000,
-    );
+    ])("discards a comment inside a %s", async (_kind, target) => {
+      const original = await readFile(
+        join(FIXTURES, "verification.cs"),
+        "utf8",
+      );
+      const result = await runFixture(target, adapter);
+      expect(result.verification).toBe("failed");
+      expect(result.outputCode).not.toContain(PROBE);
+      expect(toLf(result.outputCode)).toBe(
+        toLf(
+          (await adapter.format(original, join(FIXTURES, "verification.cs")))
+            .code,
+        ),
+      );
+      expect(result.warnings.join("\n")).toMatch(
+        /tokens changed \(token \d+: expected/,
+      );
+    });
 
     it.each([
       ["nullable directive", /^#nullable/],

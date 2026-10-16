@@ -130,9 +130,11 @@ covered under their new name. Whole files are processed, not just the changed
 lines, and the usual collection rules still apply. With either flag the paths
 are optional and only narrow the changes. With `--staged`, both `check` and
 `fix` skip a file that also has unstaged edits: WhyCode reads and writes the
-working copy, which for that file isn't what will be committed. `fix --staged`
-doesn't stage anything itself; at the end it prints the `git add` command for
-the files it wrote.
+working copy, which for that file isn't what will be committed. Besides the
+summary, a warning on stderr counts those files, so a pre-commit hook shows
+that they went unchecked; the exit code doesn't change. `fix --staged` doesn't
+stage anything itself; at the end it prints the `git add` command for the
+files it wrote.
 
 **Review once, apply later.** `whycode check --save-plan review.json` saves the
 AI's comment plan for each file, and `whycode fix --plan review.json` applies
