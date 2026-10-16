@@ -159,7 +159,6 @@ for (const [mode, adapter, installed] of [
       ["if directive", /^\s*#if/],
       ["else directive", /^\s*#else/],
       ["endif directive", /^\s*#endif/],
-      ["XML doc lines", /^\/\/\/ <remarks>/],
       ["attribute", /^\[Serializable\]/],
       ["record", /^public record Entry/],
       ["collection initializer", /^\s*new Entry\("Grace"/],
@@ -185,6 +184,12 @@ for (const [mode, adapter, installed] of [
       expect(result.outputCode).not.toMatch(
         /\/\/ .*#(?:if|else|endif|region|nullable|pragma)/,
       );
+    });
+
+    it("refuses a comment above XML doc lines, which already document the code", async () => {
+      const result = await runFixture(/^\/\/\/ <remarks>/, adapter);
+      expect(result.outputCode).not.toContain(PROBE);
+      expect(result.warnings.join("\n")).toMatch(/is already a comment/);
     });
 
     it.each([

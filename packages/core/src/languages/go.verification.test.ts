@@ -163,7 +163,6 @@ describe("Go pipeline fixtures", () => {
 describe("Go pipeline cgo protection", () => {
   it.each([
     ["immediately above import C", /^import "C"/],
-    ["joining the preamble from above", /^\/\*$/],
     ["inside the C block comment", /^typedef int number;/],
   ])("discards a comment %s", async (_name, target) => {
     const { code, result } = await runFixture(target);
@@ -171,6 +170,14 @@ describe("Go pipeline cgo protection", () => {
     expect(result.outputCode).toBe(code);
     expect(result.outputCode).not.toContain(PROBE);
     expect(result.warnings.join("\n")).toMatch(/tokens changed/);
+  });
+
+  it("refuses a comment joining the preamble from above before inserting it", async () => {
+    // The preamble opens with a comment line, so placement refuses it outright.
+    const { code, result } = await runFixture(/^\/\*$/);
+    expect(result.outputCode).toBe(code);
+    expect(result.outputCode).not.toContain(PROBE);
+    expect(result.warnings.join("\n")).toMatch(/is already a comment/);
   });
 
   it("keeps an explanation above an ordinary import", async () => {
@@ -181,10 +188,10 @@ describe("Go pipeline cgo protection", () => {
 
   it("keeps an explanation separated from the preamble by a blank line", async () => {
     const code =
-      'package p\n\n// Existing explanation.\n\n// typedef int number;\nimport "C"\n';
+      'package p\n\nvar ready = true\n\n// typedef int number;\nimport "C"\n';
     const result = await runCode(
       code,
-      commentAboveFirstMatch(/^\/\/ Existing/, PROBE),
+      commentAboveFirstMatch(/^var ready/, PROBE),
     );
     expect(result.verification).toBe("passed");
     expect(result.outputCode).toContain(`// ${PROBE}`);

@@ -35,7 +35,7 @@ describe("reviewFile", () => {
     ]);
   });
 
-  it("maps existing-comment suggestions back past inserted output lines", async () => {
+  it("drops an insertion aimed at an existing comment but still offers its rewrite", async () => {
     const result = await process(
       "# old\nrun()\n",
       commentPlanReply({
@@ -46,9 +46,10 @@ describe("reviewFile", () => {
       }),
     );
     const review = await reviewFile(result, patch, adapters);
-    // The insertion uses the same line; the existing-comment alternative is summarized.
+    // Line 1 is already a comment, so only the suggested rewrite remains.
     expect(review.comments).toHaveLength(1);
-    expect(review.notes.join(" ")).toContain("existing-comment");
+    expect(review.comments[0]?.body).toBe("```suggestion\n# clear\n```");
+    expect(review.notes.join(" ")).toContain("is already a comment");
   });
 
   it("offers existing comments separately even when the pipeline is unchanged", async () => {

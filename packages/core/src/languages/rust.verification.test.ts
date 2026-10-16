@@ -157,8 +157,17 @@ describe("Rust misplaced string comments", () => {
 });
 
 describe("Rust harmless comment placements", () => {
+  it("refuses a comment between doc lines, leaving the doc comment intact", async () => {
+    // A doc line is already a comment, so placement refuses the insertion.
+    const result = await runFixture(
+      "verification.rs",
+      /^\/\/\/ Keeps the second/,
+    );
+    expect(result.outputCode).not.toContain(PROBE);
+    expect(result.warnings.join("\n")).toMatch(/is already a comment/);
+  });
+
   it.each([
-    ["between doc lines", /^\/\/\/ Keeps the second/],
     ["between doc comment and item", /^#\[derive/],
     ["between derive attribute and item", /^pub struct Record/],
     ["between cfg attribute and item", /^mod tests/],

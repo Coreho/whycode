@@ -1,7 +1,11 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { commentPlanReply, createToyAdapter } from "@whycode/core/testing";
+import {
+  commentPlanReply,
+  createToyAdapter,
+  numberedLines,
+} from "@whycode/core/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runCli } from "./cli.js";
 import type { CliIo } from "./io.js";
@@ -19,9 +23,20 @@ describe("saved reviews", () => {
     concurrency: 1,
     createProvider: () => ({
       name: "test",
-      complete: () => {
+      complete: (request) => {
         calls++;
-        return Promise.resolve(response);
+        // Like a real model, comment the first line of code, never a comment.
+        if (response !== reply) return Promise.resolve(response);
+        const target = numberedLines(request).find(
+          (line) => !line.text.startsWith("#"),
+        );
+        return Promise.resolve(
+          commentPlanReply({
+            insertions: [
+              { line: target?.number ?? 1, position: "above", text: "Begin." },
+            ],
+          }),
+        );
       },
     }),
   };

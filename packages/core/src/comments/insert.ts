@@ -27,7 +27,9 @@ export function applyInsertions(
   const warnings: string[] = [];
 
   const placeable = insertions.filter((insertion) => {
-    const problem = placementProblem(insertion.line, lines, lineCount);
+    const problem =
+      fillerProblem(insertion.text, lineComment) ??
+      placementProblem(insertion.line, lines, lineCount, lineComment);
     if (problem === undefined) return true;
     warnings.push(`Dropped a comment for line ${insertion.line}: ${problem}.`);
     return false;
@@ -55,6 +57,7 @@ function placementProblem(
   line: number,
   lines: readonly string[],
   lineCount: number,
+  lineComment: string,
 ): string | undefined {
   if (line > lineCount) return `the file has only ${lineCount} lines`;
   // A trailing backslash continues the line (Python, shell, C macros, string
@@ -71,6 +74,47 @@ function placementProblem(
     lines.slice(0, 2).findIndex((text) => ENCODING_DECLARATION.test(text)) + 1;
   if (encodingLine > 0 && line <= encodingLine) {
     return `line ${encodingLine} declares the file's encoding, which must stay within the first two lines`;
+  }
+  // The line is already explained by its own comment; another one would only
+  // add clutter. Tool directives are the exception: an explanation of the code
+  // belongs above them, never between a directive and the code it controls.
+  const target = lines[line - 1] ?? "";
+  if (isCommentLine(target, lineComment) && !isDirective(target)) {
+    return `line ${line} is already a comment`;
+  }
+  return undefined;
+}
+
+// Comments that instruct a tool about the code below them.
+const DIRECTIVE =
+  /^(\/\/|#)\s*(go:|\+build|eslint|@ts-|prettier-ignore|nolint|pylint:|type:|noqa|biome-ignore|istanbul|c8 |region|endregion|#?pragma)/;
+
+function isDirective(line: string): boolean {
+  return DIRECTIVE.test(line.trimStart());
+}
+
+/** True for a line that starts with a comment (line or block style). */
+function isCommentLine(line: string, lineComment: string): boolean {
+  const text = line.trimStart();
+  if (text.startsWith(lineComment)) return true;
+  // C-family block comments and their continuation lines.
+  return (
+    lineComment === "//" && (text.startsWith("/*") || text.startsWith("* "))
+  );
+}
+
+// Words a model sometimes returns instead of an explanation.
+const FILLER =
+  /^(placeholder|todo|tbd|fixme|xxx|n\/?a|none|null|empty|comment|note|\.\.\.|-+)$/i;
+
+/** Why a comment's text is filler that explains nothing, or undefined. */
+function fillerProblem(text: string, lineComment: string): string | undefined {
+  const comment = withoutCommentMarker(cleanCommentText(text), lineComment);
+  if (comment === "") return "its text is empty";
+  // "TODO:", "Placeholder." and "..." are filler too.
+  const words = comment.replace(/[.:;!]+$/, "").trim();
+  if (words === "" || FILLER.test(words)) {
+    return `its text "${comment}" explains nothing`;
   }
   return undefined;
 }

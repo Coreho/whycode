@@ -149,6 +149,62 @@ describe("applyInsertions", () => {
     expect(result.warnings[1]).toMatch(/line 2 declares the file's encoding/);
   });
 
+  it("drops filler comments that explain nothing", () => {
+    // The first case reproduces a comment seen in a real run on GrammieGuide.
+    const code = "// The import saved through main.\nload();\nrun();\n";
+    const result = applyInsertions(
+      code,
+      [
+        above(1, "Placeholder"),
+        above(3, "TODO:"),
+        above(3, "..."),
+        above(2, ""),
+      ],
+      "//",
+    );
+    expect(result.code).toBe(code);
+    expect(result.warnings).toEqual([
+      'Dropped a comment for line 1: its text "Placeholder" explains nothing.',
+      'Dropped a comment for line 3: its text "TODO:" explains nothing.',
+      'Dropped a comment for line 3: its text "..." explains nothing.',
+      "Dropped a comment for line 2: its text is empty.",
+    ]);
+  });
+
+  it("drops a comment aimed at a line that is already a comment", () => {
+    const code = "    # Existing reason.\n    retry()\n";
+    const result = applyInsertions(code, [above(1, "More words.")], "#");
+    expect(result.code).toBe(code);
+    expect(result.warnings).toEqual([
+      "Dropped a comment for line 1: line 1 is already a comment.",
+    ]);
+    const block = applyInsertions(
+      "/**\n * Docs.\n */\nrun();\n",
+      [above(1, "a"), above(2, "b")],
+      "//",
+    );
+    expect(block.inserted).toBe(0);
+  });
+
+  it("still places an explanation above a tool directive, never below it", () => {
+    for (const directive of [
+      "// eslint-disable-next-line no-console",
+      "// @ts-expect-error legacy API",
+      "//go:build linux",
+      "# type: ignore[attr-defined]",
+    ]) {
+      const marker = directive.startsWith("#") ? "#" : "//";
+      const result = applyInsertions(
+        `${directive}\nrun()\n`,
+        [above(1, "Why this runs.")],
+        marker,
+      );
+      expect(result.code).toBe(
+        `${marker} Why this runs.\n${directive}\nrun()\n`,
+      );
+    }
+  });
+
   it("never changes existing lines", () => {
     const code = "  first\nsecond  \n\tthird";
     const result = applyInsertions(

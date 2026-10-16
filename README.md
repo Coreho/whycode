@@ -401,6 +401,13 @@ a backslash, which continues the line. Nor are they placed above a shebang
 (`# -*- coding: latin-1 -*-`) on line 1 or 2, which Python only reads there.
 Both are comments to tree-sitter, so verification alone wouldn't notice.
 
+To keep the result uncluttered, a comment aimed at a line that is already a
+comment is dropped, since that code is already explained. A tool directive is
+the exception (`// eslint-disable-next-line`, `// @ts-expect-error`, `//go:build`,
+`# type: ignore` and the like): the explanation goes above it, never between
+the directive and the code it controls. Filler text such as "Placeholder",
+"TODO" or "..." is dropped too. Each dropped comment is listed in the notes.
+
 ## How it works
 
 `processFile({ path, code }, config, { provider, adapters })` handles one file
