@@ -127,6 +127,182 @@ describe("applyCommentSuggestions", () => {
     });
   });
 
+  describe("comment lines quoted as one joined sentence", () => {
+    // The shape of a suggestion seen in a real run on nudl.
+    const code = [
+      "try:",
+      "    register()",
+      "except OSError as exc:",
+      "    # Only a genuine OS failure means someone else owns this. A bad",
+      "    # handle is a bug in the app and must not be reported this way.",
+      "    raise Busy() from exc",
+      "",
+    ].join("\n");
+
+    it("replaces the lines and wraps the rewrite to their width", async () => {
+      const result = await apply("a.py", code, [
+        suggest(
+          4,
+          "Only a genuine OS failure means someone else owns this. A bad handle is a bug in the app and must not be reported this way.",
+          "Every OSError is reported as Busy, including a bad handle, which is really a bug in the app.",
+        ),
+      ]);
+      expect(result.notApplied).toEqual([]);
+      expect(result.code).toBe(
+        [
+          "try:",
+          "    register()",
+          "except OSError as exc:",
+          "    # Every OSError is reported as Busy, including a bad handle,",
+          "    # which is really a bug in the app.",
+          "    raise Busy() from exc",
+          "",
+        ].join("\n"),
+      );
+    });
+
+    it("refuses a quote that ends partway through a comment line", async () => {
+      const result = await apply("a.py", code, [
+        suggest(4, "Only a genuine OS failure means someone else", "x"),
+      ]);
+      expect(result.code).toBe(code);
+    });
+  });
+
+  describe("text inside a block comment on its own lines", () => {
+    // The shape of a stale doc comment found in a real run on GrammieGuide.
+    const doc = [
+      "/**",
+      " * Theme tokens for the launcher.",
+      " * Six palettes: four soft themes share one tile color per",
+      " * theme, while the two bold themes give each tile its own",
+      " * hue - colors cycle by saved slot.",
+      " */",
+      "export const THEMES = 7;",
+      "",
+    ].join("\n");
+    const prose = (code: string) =>
+      code
+        .split("\n")
+        .slice(1, -3)
+        .map((line) => line.replace(/^ \* ?/, ""))
+        .join(" ");
+    const fixed =
+      "Seven palettes: four soft themes share one tile color per theme, while the two bold themes and the card theme give each tile its own hue";
+
+    it.each([
+      [
+        "quoted across lines, ending mid-line",
+        "Six palettes: four soft themes share one tile color per\ntheme, while the two bold themes give each tile its own\nhue",
+      ],
+      [
+        "quoted on one line",
+        "Six palettes: four soft themes share one tile color per theme, while the two bold themes give each tile its own hue",
+      ],
+      [
+        "quoted with the * prefixes",
+        " * Six palettes: four soft themes share one tile color per\n * theme, while the two bold themes give each tile its own\n * hue",
+      ],
+    ])("replaces text %s, keeping the block", async (_shape, original) => {
+      const result = await apply("theme.ts", doc, [
+        suggest(3, original, fixed),
+      ]);
+      expect(result.notApplied).toEqual([]);
+      const lines = result.code.split("\n");
+      expect(lines.slice(0, 2)).toEqual([
+        "/**",
+        " * Theme tokens for the launcher.",
+      ]);
+      expect(lines.slice(-3)).toEqual([" */", "export const THEMES = 7;", ""]);
+      expect(prose(result.code)).toBe(
+        `Theme tokens for the launcher. ${fixed} - colors cycle by saved slot.`,
+      );
+      // Re-wrapped to the block's own width, with its * prefix.
+      for (const line of lines.slice(2, -3)) {
+        expect(line.startsWith(" * ")).toBe(true);
+        expect(line.length).toBeLessThanOrEqual(58);
+      }
+    });
+
+    it("re-wraps the rest of the paragraph when the quote ends mid-line", async () => {
+      const code = [
+        "/**",
+        " * Old words here and more text that",
+        " * continues on this line.",
+        " *",
+        " * @param x the input",
+        " */",
+        "f();",
+        "",
+      ].join("\n");
+      const result = await apply("a.ts", code, [
+        suggest(2, "Old words", "Newer, longer words"),
+      ]);
+      expect(result.code).toBe(
+        [
+          "/**",
+          " * Newer, longer words here and more",
+          " * text that continues on this line.",
+          " *",
+          " * @param x the input",
+          " */",
+          "f();",
+          "",
+        ].join("\n"),
+      );
+    });
+
+    it("keeps the markers of a one-line block", async () => {
+      const code = "  /** Uses the old A-/A+ control. */\n  run();\n";
+      const result = await apply("a.ts", code, [
+        suggest(1, "Uses the old A-/A+ control.", "Uses the admin slider."),
+      ]);
+      expect(result.code).toBe("  /** Uses the admin slider. */\n  run();\n");
+    });
+
+    it("refuses text that isn't in the block, or appears in it twice", async () => {
+      const twice = "/**\n * Old note.\n * Old note.\n */\nrun();\n";
+      const result = await apply("a.ts", doc + twice, [
+        suggest(3, "Nine palettes", "Seven palettes"),
+        suggest(10, "Old note.", "New note."),
+      ]);
+      expect(result.code).toBe(doc + twice);
+      expect(result.notApplied.map((entry) => entry.reason)).toEqual([
+        "the quoted text appears more than once in the block comment at line 10",
+        "the quoted text isn't in the block comment at line 3",
+      ]);
+    });
+
+    it("refuses a rewrite that would close the comment early", async () => {
+      const result = await apply("theme.ts", doc, [
+        suggest(
+          3,
+          "Six palettes:",
+          "Seven palettes: */ export const X = 1; /*",
+        ),
+      ]);
+      expect(result.code).toBe(doc);
+      expect(result.notApplied[0]?.reason).toBe(
+        "the rewrite would end the comment early or start another one",
+      );
+    });
+
+    it("leaves text that only looks like a block comment, inside a string", async () => {
+      const code = "const css = `\n/*\n * Old rule.\n */\n`;\n";
+      const result = await apply("a.ts", code, [
+        suggest(3, "Old rule.", "New rule."),
+      ]);
+      expect(result.code).toBe(code);
+      expect(result.notApplied[0]?.reason).toMatch(/would change code/);
+    });
+
+    it("doesn't treat a block that shares a line with code as standing alone", async () => {
+      const code = "run(); /* first\n * second */\n";
+      const result = await apply("a.ts", code, [suggest(2, "second", "later")]);
+      expect(result.code).toBe(code);
+    });
+  });
+
   describe("block comments", () => {
     it("rewrites a JSDoc block on its own lines into any shape", async () => {
       const code = "class A {\n  /** Old. */\n  run() {}\n}\n";
@@ -188,7 +364,7 @@ describe("applyCommentSuggestions", () => {
     expect(result.code).toBe(code);
     expect(result.notApplied.map((entry) => entry.reason)).toEqual([
       "line 9 is past the end of the file",
-      "line 1 no longer holds the comment it would replace",
+      "the quoted comment text isn't at line 1",
     ]);
   });
 

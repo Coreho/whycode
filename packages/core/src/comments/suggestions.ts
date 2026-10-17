@@ -2,11 +2,14 @@
 // accepted them. A suggestion may only replace a comment with a comment, in
 // one of three shapes:
 // - whole comment lines (lines that start with the line-comment marker) are
-//   replaced by new comment lines, built exactly like inserted comments;
+//   replaced by new comment lines, built exactly like inserted comments (a
+//   quote that joins the lines into one is matched word by word);
 // - a line comment that ends a line of code is replaced on that line;
 // - a /* block comment */ is replaced by one block comment; next to code it
 //   keeps its line-break structure (in JavaScript a line break inside a
-//   block comment can end a statement).
+//   block comment can end a statement);
+// - text quoted from inside a block comment on lines of its own is replaced
+//   in place, keeping the block's markers (see block-text.ts).
 // For languages with full support the token stream must also stay identical.
 // Languages without it only get whole comment lines. Lines keep their own
 // line endings, and the text is returned unchanged if nothing applies.
@@ -15,8 +18,9 @@ import type { LanguageAdapter } from "../languages/adapter.js";
 import { findAdapterForPath } from "../languages/adapter.js";
 import { findCommentOnlyLanguage } from "../languages/fallback.js";
 import { compareTokenStreams } from "../verify.js";
+import { rewriteInsideBlock } from "./block-text.js";
 import { cleanCommentText, LINE_BREAKS, toCommentLines } from "./insert.js";
-import { withoutHiddenCharacters } from "../text.js";
+import { withoutHiddenCharacters, wrapWords } from "../text.js";
 
 export interface SuggestionsResult {
   /** The code with every applicable suggestion applied. */
@@ -44,6 +48,8 @@ interface CommentSyntax {
 const BYTE_ORDER_MARK = String.fromCharCode(0xfeff);
 const BLOCK_START = "/*";
 const BLOCK_END = "*/";
+// Narrower comment lines than this aren't a width worth matching.
+const MIN_WRAP_WIDTH = 40;
 
 export async function applyCommentSuggestions(
   path: string,
@@ -115,7 +121,7 @@ function planReplacement(
     };
   }
   const shapes = syntax.fullSupport
-    ? [wholeCommentLines, trailingComment, blockComment]
+    ? [wholeCommentLines, trailingComment, blockComment, textInsideBlock]
     : [wholeCommentLines];
   for (const shape of shapes) {
     const replacement = shape(lines, suggestion, syntax);
@@ -124,7 +130,7 @@ function planReplacement(
   return {
     ok: false,
     reason: syntax.fullSupport
-      ? `line ${suggestion.line} no longer holds the comment it would replace`
+      ? `the quoted comment text isn't at line ${suggestion.line}`
       : "without full support for this language, only whole comment lines can be rewritten",
   };
 }
@@ -146,7 +152,7 @@ function wholeCommentLines(
         withoutMarker(original.trim(), lineComment)
     );
   });
-  if (!matches) return undefined;
+  if (!matches) return rejoinedCommentLines(lines, suggestion, lineComment);
   const indent = leadingWhitespace(lines[start]?.text ?? "");
   const newLines = toCommentLines(suggestion.suggested, indent, lineComment);
   return {
@@ -155,6 +161,60 @@ function wholeCommentLines(
     end: start + originalLines.length,
     lines: newLines,
   };
+}
+
+/**
+ * Whole comment lines quoted with other line breaks: a model often joins a
+ * comment's lines into one. The quoted words must cover complete lines, and
+ * the rewrite is wrapped to the width those lines had.
+ */
+function rejoinedCommentLines(
+  lines: readonly Line[],
+  suggestion: ExistingCommentSuggestion,
+  lineComment: string,
+): Replacement | undefined {
+  const quoted = commentWords(suggestion.original, lineComment);
+  if (quoted.length === 0) return undefined;
+  const start = suggestion.line - 1;
+  const found: string[] = [];
+  let end = start;
+  while (found.length < quoted.length) {
+    const text = lines[end]?.text.trim();
+    if (text === undefined || !text.startsWith(lineComment)) return undefined;
+    found.push(...commentWords(text, lineComment));
+    end += 1;
+  }
+  if (found.join(" ") !== quoted.join(" ")) return undefined;
+  const indent = leadingWhitespace(lines[start]?.text ?? "");
+  const lengths = lines
+    .slice(start, end)
+    .map((line) => line.text.trimEnd().length);
+  const widest = Math.max(MIN_WRAP_WIDTH, ...lengths);
+  const width = end - start === 1 ? Math.max(widest, 80) : widest;
+  const text = commentWords(
+    withoutHiddenCharacters(suggestion.suggested),
+    lineComment,
+  ).join(" ");
+  const prefix = `${indent}${lineComment} `;
+  const wrapped = wrapWords(text, prefix, prefix, width).map((line) =>
+    line.slice(prefix.length),
+  );
+  return {
+    ok: true,
+    start,
+    end,
+    lines: toCommentLines(wrapped.join("\n"), indent, lineComment),
+  };
+}
+
+/** The words of comment text, ignoring line breaks and comment markers. */
+function commentWords(text: string, lineComment: string): string[] {
+  return text
+    .split(LINE_BREAKS)
+    .map((line) => withoutMarker(line.trim(), lineComment))
+    .join(" ")
+    .split(/\s+/)
+    .filter((word) => word !== "");
 }
 
 /** A line comment after code on the same line: `x = 1  # old` -> `x = 1  # new`. */
@@ -233,6 +293,21 @@ function blockComment(
     indentFollowingLines(suggested, indent) +
     region.slice(found + original.length);
   return { ok: true, start, end, lines: replaced.split("\n") };
+}
+
+/** Text quoted from inside a C-style block comment that stands on its own lines. */
+function textInsideBlock(
+  lines: readonly Line[],
+  suggestion: ExistingCommentSuggestion,
+  { lineComment }: CommentSyntax,
+): Replacement | undefined {
+  if (lineComment !== "//") return undefined;
+  return rewriteInsideBlock(
+    lines.map((line) => line.text),
+    suggestion.line,
+    suggestion.original,
+    suggestion.suggested,
+  );
 }
 
 /** Starts with the block opener, ends with the closer, nothing else inside. */

@@ -1,7 +1,7 @@
 // Text helpers. Line endings: the pipeline works on LF text internally and
 // returns results with the file's original line endings, so CRLF files stay
 // CRLF. Hidden characters: removed from AI-written text, and made visible
-// when text from a file is shown.
+// when text from a file is shown. Word wrap: for rewritten comments.
 
 export type LineEnding = "\n" | "\r\n";
 
@@ -61,4 +61,26 @@ export function visibleText(text: string): string {
       return hidden ? `\\u{${(char.codePointAt(0) ?? 0).toString(16)}}` : char;
     })
     .join("");
+}
+
+/** Greedy word wrap: the first line takes `firstPrefix`, later ones `nextPrefix`. */
+export function wrapWords(
+  text: string,
+  firstPrefix: string,
+  nextPrefix: string,
+  width: number,
+): string[] {
+  const out: string[] = [];
+  let current = "";
+  const prefix = () => (out.length === 0 ? firstPrefix : nextPrefix);
+  for (const word of text.split(" ")) {
+    if (current !== "" && `${prefix()}${current} ${word}`.length > width) {
+      out.push(`${prefix()}${current}`);
+      current = word;
+    } else {
+      current = current === "" ? word : `${current} ${word}`;
+    }
+  }
+  out.push(`${prefix()}${current}`);
+  return out;
 }
