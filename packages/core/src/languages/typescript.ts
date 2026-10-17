@@ -6,6 +6,7 @@ import * as prettier from "prettier";
 import type { LanguageAdapter } from "./adapter.js";
 import {
   prettierAdopted,
+  prettierConfigRunsCode,
   prettierIgnoreFor,
   projectPrettierConfig,
 } from "./formatter-adoption.js";
@@ -54,6 +55,7 @@ function createScriptAdapter(dialect: ScriptDialect): LanguageAdapter {
       name: "Prettier",
       isAdopted: prettierAdopted,
       ignoreFileFor: prettierIgnoreFor,
+      runsProjectCode: prettierConfigRunsCode,
     },
     tokens: (code) =>
       treeSitterTokens(code, dialect.grammar, SCRIPT_TOKEN_RULES),

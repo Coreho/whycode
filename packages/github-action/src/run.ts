@@ -253,6 +253,8 @@ export async function runAction(options: ActionOptions): Promise<void> {
     mode: "safe",
     provider: "anthropic",
     testCommand: null,
+    // A pull request controls its own formatter config, so its code never runs.
+    trustFormatterConfig: false,
     ...(inputs.commentLevel
       ? {
           commentLevel: resolveConfig({ commentLevel: inputs.commentLevel })

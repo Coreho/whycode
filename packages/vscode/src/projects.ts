@@ -44,6 +44,9 @@ export async function prepareRun(
     const settings = readSettings(vscode.Uri.file(startDir));
     const loaded = await loadConfig(rootDir, {
       commentLevel: settings.commentLevel,
+      // Workspace trust is the opt-in: the extension doesn't run in untrusted
+      // workspaces, so a trusted one may use its own formatter config.
+      trustFormatterConfig: true,
     });
     if (loaded.mode === "refactor") {
       run.notes.push(

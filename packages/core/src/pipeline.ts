@@ -362,7 +362,8 @@ async function formatCode(
  * runs only when the project has adopted it (a config file or dependency),
  * so WhyCode never imposes a formatter's defaults on code that doesn't use it.
  * A file the project's ignore file excludes (.prettierignore) is never
- * formatted, even with format "always".
+ * formatted, even with format "always". Nor is one whose formatter config
+ * would run code from the project, unless trustFormatterConfig says so.
  */
 async function planFormatting(
   adapter: LanguageAdapter,
@@ -384,6 +385,15 @@ async function planFormatting(
       return {
         enabled: false,
         skippedNote: `Formatting was skipped: the project's ${basename(ignoreFile)} excludes this file.`,
+      };
+    }
+    const runsCode = config.trustFormatterConfig
+      ? undefined
+      : await formatter.runsProjectCode?.(path);
+    if (runsCode !== undefined) {
+      return {
+        enabled: false,
+        skippedNote: `Formatting was skipped: ${runsCode}. WhyCode doesn't run code from a project unless you pass --trust-formatter-config.`,
       };
     }
     if (config.format === "always" || (await formatter.isAdopted(path))) {

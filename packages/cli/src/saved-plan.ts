@@ -129,7 +129,8 @@ export async function savePlan(
     tool: await toolIdentity(),
     rootHash: digest(run.rootDir),
     configHash: configDigest(run.config),
-    overrides,
+    // A plan file never grants trust: replaying needs the flag again.
+    overrides: { ...overrides, trustFormatterConfig: undefined },
     files,
   };
   await writeFile(path, JSON.stringify(plan, null, 2) + "\n", {
@@ -190,6 +191,10 @@ export async function loadPlan(path: string): Promise<SavedPlan> {
   ) as ConfigOverrides;
   if (overrides.mode === "refactor")
     throw new Error("Saved plans only support safe mode.");
+  if (overrides.trustFormatterConfig !== undefined)
+    throw new Error(
+      "A saved plan can't grant --trust-formatter-config; pass the flag yourself.",
+    );
   return {
     schema: 1,
     tool: hash(data.tool),

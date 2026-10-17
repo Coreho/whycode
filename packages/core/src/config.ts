@@ -1,5 +1,6 @@
 // Loads WhyCode settings: defaults, then .whycoderc.json at the repo root,
-// then command-line flags. Only loadConfig touches the filesystem.
+// then command-line flags. Only loadConfig touches the filesystem. Settings
+// that grant trust to the project can come only from flags.
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import * as z from "zod";
@@ -22,7 +23,15 @@ export const configSchema = z.strictObject({
   model: z.string().min(1).default("claude-sonnet-5-5"),
   testCommand: z.string().min(1).nullable().default(null),
   format: formatSchema.default("auto"),
+  /**
+   * Lets a formatter use project config that runs code (a JavaScript Prettier
+   * config, Prettier plugins). Only a flag can set it, never the project.
+   */
+  trustFormatterConfig: z.boolean().default(false),
 });
+
+// The repository controls its own config file, so it can't vouch for itself.
+const USER_ONLY_SETTINGS = ["trustFormatterConfig"] as const;
 
 export type WhycodeConfig = z.output<typeof configSchema>;
 export type CommentLevel = z.output<typeof commentLevelSchema>;
@@ -43,6 +52,14 @@ export function resolveConfig(
 ): WhycodeConfig {
   if (!isPlainObject(fileConfig)) {
     throw new ConfigError(`${CONFIG_FILE_NAME} must contain a JSON object.`);
+  }
+  const userOnly = USER_ONLY_SETTINGS.find((key) =>
+    Object.hasOwn(fileConfig, key),
+  );
+  if (userOnly !== undefined) {
+    throw new ConfigError(
+      `${userOnly} can't be set in ${CONFIG_FILE_NAME}, because the project controls that file. Pass --trust-formatter-config instead.`,
+    );
   }
   const result = configSchema.safeParse({
     ...fileConfig,

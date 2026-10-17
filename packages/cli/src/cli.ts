@@ -57,6 +57,9 @@ Options:
                               formatter (by default WhyCode only uses a formatter the
                               project has set up). Pass the same to prompt, preview, write.
   --no-format                 Never format; only add comments.
+  --trust-formatter-config    Let the formatter run code from the project: a JavaScript
+                              Prettier config, Prettier plugins, a shared config package.
+                              Off by default, and the project's own config can't turn it on.
   --save-plan <file>          check: save the AI's comment plans (no source code), so that
                               fix --plan <file> applies exactly what check showed with no
                               new model request; changed files are refused.

@@ -59,6 +59,20 @@ describe("agent commands", () => {
 
   const run = (...argv: string[]) => runCli(argv, io(), deps);
 
+  it("carries --trust-formatter-config through printed agent instructions", async () => {
+    await files({ "a.toy": " run\n" });
+    expect(await run("prompt", "a.toy", "--trust-formatter-config")).toBe(0);
+    expect(stdout).toMatch(/whycode preview[^\n]*--trust-formatter-config/);
+    stdout = "";
+    stdin = commentPlanReply({
+      insertions: [{ line: 1, position: "above", text: "Begin." }],
+    });
+    expect(
+      await run("preview", "a.toy", "--trust-formatter-config", "--plan", "-"),
+    ).toBe(0);
+    expect(stdout).toMatch(/whycode write[^\n]*--trust-formatter-config/);
+  });
+
   it.each(["--format", "--no-format"])(
     "carries %s through printed agent instructions",
     async (flag) => {

@@ -31,6 +31,11 @@ export interface LanguageAdapter {
     isAdopted(filePath: string): Promise<boolean>;
     /** The project's ignore file that excludes this file from formatting, if any. */
     ignoreFileFor?(filePath: string): Promise<string | undefined>;
+    /**
+     * Why using the project's formatter config would run code from the
+     * project (a JavaScript config, plugins), or undefined if it wouldn't.
+     */
+    runsProjectCode?(filePath: string): Promise<string | undefined>;
   };
 }
 

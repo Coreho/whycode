@@ -3,7 +3,7 @@
 // runs a formatter a project uses, so it never reformats a whole codebase to
 // a style nobody chose.
 import { access, readdir, readFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import * as prettier from "prettier";
 
 /** True if `test` passes for the file's folder or any folder above it. */
@@ -119,10 +119,79 @@ export async function prettierIgnoreFor(
     return false;
   });
   for (const ignorePath of ignoreFiles) {
-    const info = await prettier.getFileInfo(resolve(filePath), { ignorePath });
+    // resolveConfig: false, or Prettier loads the project's config, which runs
+    // a JavaScript config file.
+    const info = await prettier.getFileInfo(resolve(filePath), {
+      ignorePath,
+      resolveConfig: false,
+    });
     if (info.ignored) return ignorePath;
   }
   return undefined;
+}
+
+// Prettier runs a config written in JavaScript or TypeScript.
+const CODE_CONFIG = /\.[cm]?[jt]s$/;
+
+/**
+ * Why formatting with the project's Prettier config would run code from the
+ * project, or undefined if it wouldn't. Prettier runs a JavaScript config,
+ * loads the plugins a config names, and loads a shared config package that a
+ * config points to by name. Checked without asking Prettier, which would
+ * run the config to find out.
+ */
+export async function prettierConfigRunsCode(
+  filePath: string,
+): Promise<string | undefined> {
+  const config = await projectPrettierConfig(filePath);
+  if (config === undefined) return undefined;
+  const name = basename(config);
+  if (CODE_CONFIG.test(name)) {
+    return `the project's ${name} is JavaScript, which Prettier would run`;
+  }
+  const text = (await readOptional(config)) ?? "";
+  const settings = name === "package.json" ? packagePrettierKey(text) : text;
+  if (settings === undefined) return undefined;
+  // Conservative on purpose: a false alarm only skips formatting with a note.
+  if (/\bplugins\b/.test(settings)) {
+    return `the project's ${name} names Prettier plugins, which Prettier would run`;
+  }
+  if (namesSharedConfig(settings)) {
+    return `the project's ${name} points to a shared Prettier config package, which Prettier would run`;
+  }
+  return undefined;
+}
+
+/** The "prettier" key of a package.json, as JSON text, if there is one. */
+function packagePrettierKey(text: string): string | undefined {
+  try {
+    const manifest: unknown = JSON.parse(text);
+    if (typeof manifest !== "object" || manifest === null) return undefined;
+    const value: unknown = (manifest as Record<string, unknown>).prettier;
+    return value === undefined ? undefined : JSON.stringify(value);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * True if config text is a bare name rather than settings: a JSON string or
+ * a YAML scalar such as "@company/prettier-config".
+ */
+function namesSharedConfig(text: string): boolean {
+  const content = text
+    .split("\n")
+    .filter((line) => !/^\s*(#|\/\/)/.test(line))
+    .join("\n")
+    .trim();
+  if (content === "") return false;
+  try {
+    // JSON: a string names a package; an object (even {}) holds settings.
+    return typeof JSON.parse(content) === "string";
+  } catch {
+    // YAML or TOML: settings need ":" or "=", a bare name has neither.
+    return !content.includes(":") && !content.includes("=");
+  }
 }
 
 /** Only Ruff settings opt into Ruff; Black preferences are not translated. */

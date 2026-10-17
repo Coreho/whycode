@@ -1,5 +1,6 @@
 // Runs the action offline with real collection/pipeline work and fake GitHub/AI edges.
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -10,6 +11,7 @@ import {
   commentAboveFirstMatch,
   commentPlanReply,
 } from "@whycode/core/testing";
+import { typescriptAdapter } from "@whycode/core";
 import { runAction } from "./run.js";
 import type { ActionOptions, ChangedFile, GitHubClient } from "./run.js";
 
@@ -66,6 +68,41 @@ afterEach(async () => {
   await Promise.all(
     folders.splice(0).map((path) => rm(path, { recursive: true, force: true })),
   );
+});
+
+describe("code from the pull request", () => {
+  // Writes RAN.txt whenever Prettier loads it.
+  const configThatRuns =
+    'import { writeFileSync } from "node:fs";\nwriteFileSync(new URL("./RAN.txt", import.meta.url), "ran");\nexport default { semi: false };\n';
+
+  it("never runs a JavaScript Prettier config the PR adds", async () => {
+    const { options, github, workspace } = await fixture({
+      "a.ts": "const a = 1;\n",
+      "prettier.config.mjs": configThatRuns,
+    });
+    github.listFiles.mockResolvedValue([
+      changed("a.ts", "const a = 1;\n"),
+      changed("prettier.config.mjs", configThatRuns),
+    ]);
+    await runAction({
+      ...options,
+      adapters: [typescriptAdapter],
+      provider: new FakeAIProvider(commentPlanReply({})),
+    });
+    expect(existsSync(join(workspace, "RAN.txt"))).toBe(false);
+  });
+
+  it("refuses a .whycoderc.json that tries to grant that trust", async () => {
+    const { options, workspace } = await fixture({
+      "a.ts": "const a = 1;\n",
+      "prettier.config.mjs": configThatRuns,
+      ".whycoderc.json": '{"trustFormatterConfig":true}',
+    });
+    await expect(
+      runAction({ ...options, adapters: [typescriptAdapter] }),
+    ).rejects.toThrow(/trustFormatterConfig can't be set in \.whycoderc\.json/);
+    expect(existsSync(join(workspace, "RAN.txt"))).toBe(false);
+  });
 });
 
 describe("job summary", () => {

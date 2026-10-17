@@ -63,6 +63,7 @@ const OPTIONS = {
   "no-format": { type: "boolean" },
   diff: { type: "string" },
   json: { type: "boolean" },
+  "trust-formatter-config": { type: "boolean" },
   help: { type: "boolean", short: "h" },
   version: { type: "boolean", short: "v" },
 } as const;
@@ -84,6 +85,7 @@ const COMMAND_FLAGS = {
     "format",
     "no-format",
     "json",
+    "trust-formatter-config",
   ],
   fix: [
     "review-state",
@@ -99,10 +101,24 @@ const COMMAND_FLAGS = {
     "format",
     "no-format",
     "json",
+    "trust-formatter-config",
   ],
-  prompt: ["comment-level", "list", "format", "no-format"],
-  preview: ["plan", "format", "no-format"],
-  write: ["plan", "fingerprint", "accept-suggestions", "format", "no-format"],
+  prompt: [
+    "comment-level",
+    "list",
+    "format",
+    "no-format",
+    "trust-formatter-config",
+  ],
+  preview: ["plan", "format", "no-format", "trust-formatter-config"],
+  write: [
+    "plan",
+    "fingerprint",
+    "accept-suggestions",
+    "format",
+    "no-format",
+    "trust-formatter-config",
+  ],
 } as const satisfies Record<string, readonly Flag[]>;
 type Command = keyof typeof COMMAND_FLAGS;
 
@@ -240,8 +256,8 @@ function parseAgentStep(
       `"whycode ${command}" needs --plan <file> (or - for stdin).`,
     );
   }
-  // Only --format and --no-format can be set here; they must match the
-  // prompt's, since formatting changes the line numbers the plan refers to.
+  // Only the formatting flags can be set here; they must match the prompt's,
+  // since formatting changes the line numbers the plan refers to.
   const overrides = parseOverrides(values);
   if (typeof overrides === "string") return usageError(overrides);
   if (command === "preview") return { kind: "preview", path, plan, overrides };
@@ -308,6 +324,8 @@ function parseOverrides(values: FlagValues): ConfigOverrides | string {
   }
   if (values.format === true) overrides.format = "always";
   if (values["no-format"] === true) overrides.format = "never";
+  if (values["trust-formatter-config"] === true)
+    overrides.trustFormatterConfig = true;
   const level = values["comment-level"];
   if (level !== undefined) {
     const commentLevel = COMMENT_LEVELS.find((known) => known === level);

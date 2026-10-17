@@ -186,11 +186,15 @@ function renderAgentPreview(
 }
 
 function formatFlag(overrides: ConfigOverrides): string {
-  return overrides.format === "always"
-    ? " --format"
-    : overrides.format === "never"
-      ? " --no-format"
-      : "";
+  const format =
+    overrides.format === "always"
+      ? " --format"
+      : overrides.format === "never"
+        ? " --no-format"
+        : "";
+  const trust =
+    overrides.trustFormatterConfig === true ? " --trust-formatter-config" : "";
+  return format + trust;
 }
 
 export interface WriteRequest extends AgentStep {

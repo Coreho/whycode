@@ -1,5 +1,6 @@
 // Tests for detecting whether a project has adopted a formatter, from
 // config files and dependencies in the file's folder or any folder above.
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -8,6 +9,7 @@ import {
   csharpierAdopted,
   googleJavaFormatAdopted,
   prettierAdopted,
+  prettierConfigRunsCode,
   prettierIgnoreFor,
   ruffAdopted,
 } from "./formatter-adoption.js";
@@ -114,6 +116,66 @@ describe("formatter adoption", () => {
       "inner/.git": "gitdir: somewhere",
     });
     expect(await prettierIgnoreFor(source("inner/a.ts"))).toBeUndefined();
+  });
+
+  it.each([
+    ["prettier.config.mjs", "export default {};", "is JavaScript"],
+    [".prettierrc.cjs", "module.exports = {};", "is JavaScript"],
+    [
+      ".prettierrc",
+      '{"plugins":["prettier-plugin-x"]}',
+      "names Prettier plugins",
+    ],
+    [
+      ".prettierrc.yaml",
+      "overrides:\n  - files: '*.x'\n    options:\n      plugins: [x]\n",
+      "names Prettier plugins",
+    ],
+    [
+      ".prettierrc",
+      '"@company/prettier-config"',
+      "shared Prettier config package",
+    ],
+    [
+      ".prettierrc.yaml",
+      "# shared\n@company/prettier-config\n",
+      "shared Prettier config package",
+    ],
+    [
+      "package.json",
+      '{"prettier":"@company/prettier-config"}',
+      "shared Prettier config package",
+    ],
+  ])(
+    "sees that Prettier would run code from %s",
+    async (name, content, why) => {
+      await files({ [name]: content });
+      expect(await prettierConfigRunsCode(source("src/a.ts"))).toContain(why);
+    },
+  );
+
+  it.each([
+    [".prettierrc", '{"semi":false}'],
+    [".prettierrc.json", "{}"],
+    [".prettierrc.json5", "{ semi: false }"],
+    [".prettierrc.toml", "semi = false\n"],
+    ["package.json", '{"prettier":{"semi":false}}'],
+    ["package.json", '{"devDependencies":{"prettier":"^3.0.0"}}'],
+  ])("finds nothing to run in a declarative %s", async (name, content) => {
+    await files({ [name]: content });
+    expect(await prettierConfigRunsCode(source("a.ts"))).toBeUndefined();
+  });
+
+  it("checks .prettierignore without running a JavaScript config", async () => {
+    await files({
+      ".git": "gitdir: somewhere",
+      ".prettierignore": "legacy.ts\n",
+      "prettier.config.mjs":
+        'import { writeFileSync } from "node:fs";\nwriteFileSync(new URL("./RAN.txt", import.meta.url), "ran");\nexport default {};\n',
+    });
+    expect(await prettierIgnoreFor(source("legacy.ts"))).toBeDefined();
+    expect(await prettierIgnoreFor(source("main.ts"))).toBeUndefined();
+    expect(existsSync(source("RAN.txt"))).toBe(false);
   });
 
   it("doesn't count a pyproject.toml without formatter settings", async () => {

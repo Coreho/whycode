@@ -123,6 +123,39 @@ describe("saved reviews", () => {
     expect(await run("check", "a.toy", "--save-plan", "a.toy")).toBe(2);
     expect(await readFile(join(root, "a.toy"), "utf8")).toBe(code);
   });
+  it("never stores or accepts trust in a plan file", async () => {
+    expect(
+      await run(
+        "check",
+        "a.toy",
+        "--trust-formatter-config",
+        "--save-plan",
+        "review.json",
+      ),
+    ).toBe(1);
+    const plan = JSON.parse(
+      await readFile(join(root, "review.json"), "utf8"),
+    ) as { overrides: Record<string, unknown> };
+    expect(plan.overrides).not.toHaveProperty("trustFormatterConfig");
+    // Replaying needs the flag again, so the config matches the saved one.
+    expect(
+      await run(
+        "fix",
+        "--plan",
+        "review.json",
+        "--yes",
+        "--trust-formatter-config",
+      ),
+    ).toBe(0);
+
+    plan.overrides.trustFormatterConfig = true;
+    await writeFile(join(root, "forged.json"), JSON.stringify(plan));
+    expect(await run("fix", "--plan", "forged.json", "--yes")).toBe(2);
+    expect(stderr).toContain(
+      "A saved plan can't grant --trust-formatter-config",
+    );
+  });
+
   it("carries explicit format overrides from check into offline fix", async () => {
     await writeFile(join(root, ".whycoderc.json"), '{"format":"always"}');
     expect(

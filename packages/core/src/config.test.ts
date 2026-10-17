@@ -23,6 +23,7 @@ describe("resolveConfig", () => {
       model: "claude-sonnet-5-5",
       testCommand: null,
       format: "auto",
+      trustFormatterConfig: false,
     });
   });
 
