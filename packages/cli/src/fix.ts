@@ -270,6 +270,7 @@ class FixSession {
 
   async review(outcome: FileOutcome): Promise<void> {
     if (this.stopped) return this.markNotReviewed([outcome.file.path]);
+    outcome = this.state?.filterRejected(outcome) ?? outcome;
     if ("skip" in outcome) return this.addSkips([outcome.skip]);
     const { result, file } = outcome;
     this.io.stdout(renderVerdict(result.path, fileVerdict(result), this.paint));

@@ -3,8 +3,8 @@
 // the suggestions the person rejected, so an unchanged file isn't sent to the
 // AI again and rejected suggestions don't come back. Only hashes and comment
 // suggestions (with likely secrets masked) are stored, never source code.
-// Any change to the file, the config, the prompt or the tool invalidates an
-// entry; --refresh ignores it.
+// Config, prompt, tool changes and --refresh invalidate cached reviews.
+// Rejections survive those changes, but only for the same source bytes.
 import { lstat, readFile, writeFile } from "node:fs/promises";
 import type {
   CollectedFile,
@@ -110,8 +110,18 @@ export class ReviewState {
         throw new Error(
           "Invalid review-state file; use a new path or remove the old file to reset it.",
         );
-      if (parsed.rootHash === data.rootHash && parsed.tool === data.tool)
-        data = parsed;
+      if (parsed.rootHash === data.rootHash) {
+        if (parsed.tool === data.tool) data = parsed;
+        else {
+          // New builds must regenerate reviews, but must not undo user decisions.
+          data.entries = Object.fromEntries(
+            Object.entries(parsed.entries).map(([path, entry]) => [
+              path,
+              { ...entry, context: "", pending: [], warnings: [] },
+            ]),
+          );
+        }
+      }
     }
     return new ReviewState(path, original, data, config, adapters);
   }
@@ -185,8 +195,9 @@ export class ReviewState {
   ): Promise<void> {
     if (result.verification !== "passed" || result.mode !== "full") return;
     const rebased = reanchor(result.outputCode, code, pending);
+    const rebasedRejected = reanchor(result.outputCode, code, rejected);
     // An ambiguous comment location must not disappear behind a remembered review.
-    if (!rebased) return;
+    if (!rebased || !rebasedRejected) return;
     const source = await readSourceFile(file.absolutePath);
     if (!source.ok || source.code !== code) return;
     const context = await this.context(file, code);
@@ -200,17 +211,56 @@ export class ReviewState {
       pending: rebased.map(withSecretsMasked),
       rejected: [
         ...new Set([
-          ...(previous?.sourceHash === digest(result.originalCode)
-            ? previous.rejected
-            : []),
-          ...rejected.map(suggestionId),
+          ...(previous?.sourceHash === digest(code) ? previous.rejected : []),
+          ...rebasedRejected.map((suggestion) =>
+            suggestionId(withSecretsMasked(suggestion)),
+          ),
         ]),
       ],
       warnings: result.warnings.filter(
-        (note) => !note.startsWith("Reused a matching saved review"),
+        (note) =>
+          !note.startsWith("Reused a matching saved review") &&
+          !note.startsWith("Withheld "),
       ),
     };
     this.dirty = true;
+  }
+
+  /** Filter only exact rejected rewrites anchored to the unchanged source. */
+  filterRejected(outcome: FileOutcome): FileOutcome {
+    if ("skip" in outcome) return outcome;
+    const { file, result } = outcome;
+    const entry = Object.hasOwn(this.data.entries, file.path)
+      ? this.data.entries[file.path]
+      : undefined;
+    if (!entry || entry.sourceHash !== digest(result.originalCode))
+      return outcome;
+    const rejected = new Set(entry.rejected);
+    const kept = result.commentSuggestions.filter((suggestion) => {
+      // Suggestions refer to the proposed output, while saved decisions refer
+      // to the file before this pass. Formatting/insertions can move that line.
+      const anchored = reanchor(result.outputCode, result.originalCode, [
+        suggestion,
+      ])?.[0];
+      if (!anchored) return true;
+      return (
+        !rejected.has(suggestionId(withSecretsMasked(anchored))) &&
+        !rejected.has(suggestionId(anchored))
+      ); // legacy unmasked hashes
+    });
+    const count = result.commentSuggestions.length - kept.length;
+    if (count === 0) return outcome;
+    return {
+      file,
+      result: {
+        ...result,
+        commentSuggestions: kept,
+        warnings: [
+          ...result.warnings,
+          `Withheld ${count} previously rejected comment suggestion${count === 1 ? "" : "s"} for unchanged source.`,
+        ],
+      },
+    };
   }
 
   async flush(): Promise<void> {

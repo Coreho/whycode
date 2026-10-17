@@ -89,7 +89,7 @@ export async function runCheck(
         if (captured.entry) entries.push(captured.entry);
         return captured.outcome;
       },
-      (outcome) => report.add(outcome),
+      (outcome) => report.add(state?.filterRejected(outcome) ?? outcome),
     );
   }
   const exitCode = report.finish();
