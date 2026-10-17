@@ -70,6 +70,10 @@ describe("systemPrompt", () => {
       "only when its name and signature don't already make its purpose clear",
     );
     expect(light).toContain("fewer, better comments");
+    // Quiet, but not silent about code that is easy to break.
+    expect(light).toContain("ordering or timing that matters");
+    expect(light).toContain("Test files count too");
+    expect(light).toContain("Documented behavior of the language");
     // Medium still summarizes every function, so the levels stay distinct.
     expect(systemPrompt("medium")).toContain(
       "summary above each function, method, and class that lacks one",
