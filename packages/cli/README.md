@@ -1,10 +1,18 @@
 # whycode
 
-Cleans up AI-written code so people can understand it: adds comments that
-explain **what** the code does and **why**, checked so they can't change the
-code, and formats it with your project's own formatter when the project uses
-one. Every change is shown as a diff first, and nothing is written until you
-accept it.
+Proposes explanatory comments for AI-written code and formats it with your
+project's own formatter when the project uses one. Every change is shown as a
+diff first, and nothing is written until you accept it.
+
+**Experimental and not yet published.** Generated comments can be incorrect,
+redundant, or inconsistent across runs. Token checks on supported languages
+check code-token preservation, not factual accuracy or every aspect of runtime
+behavior. Review the explanations and run your project's tests before keeping
+changes. Usefulness and time savings with independent developers are unproven.
+
+Selected source files go to the configured AI provider. Secret masking can miss
+sensitive data; read the [privacy documentation](https://github.com/Coreho/whycode/blob/main/PRIVACY.md)
+before using private code.
 
 This is the command-line front-end of [WhyCode](https://github.com/Coreho/whycode#readme).
 See the main README for how verification works, the full configuration
@@ -12,9 +20,21 @@ reference and the other front-ends.
 
 ## Install
 
+Build and install the package from the repository. Follow the
+[quickstart](https://github.com/Coreho/whycode/blob/main/QUICKSTART.md) for
+PowerShell and shell instructions, provider setup, and your first file.
+The package is not published to npm yet. After building and packing it as
+described in the quickstart, install the resulting archive:
+
 ```sh
-npm install -g whycode
+npm install --global ./dist/whycode-0.1.0-beta.1.tgz
+whycode demo
 ```
+
+On Windows PowerShell use `npm.cmd` and `whycode.cmd`. The demo makes no model
+requests and needs no key. It labels its prepared response and simulated
+acceptance, uses the real verification pipeline, and writes only a temporary
+sample. Live results may differ.
 
 Needs Node.js 22.12 or newer. Languages with full support (formatting plus a
 check that adding comments leaves the code's tokens unchanged): Python, JavaScript, TypeScript, Go,
@@ -54,11 +74,16 @@ export OPENROUTER_API_KEY=sk-or-...      # with --provider openrouter
 ## Commands
 
 ```sh
-whycode check src             # dry run: diffs and suggestions, writes nothing
-whycode fix src               # review each file's diff, write what you accept
-whycode fix . --yes           # accept every file's changes without asking
-whycode fix app.py --refactor # let the AI rewrite the code (logic will change)
+whycode demo                            # offline prepared walkthrough
+whycode fix src/example.ts --no-format # review one file after setting your key
+whycode check src                      # dry run: writes no source changes
 ```
+
+The preview says **Nothing written to this file**. New comments are proposed
+as a batch; existing-comment corrections are separate decisions. **Wrote ...**
+confirms a save. **No changes proposed** is a result for this run, not a claim
+that the file needs no improvements. Formatting is outside the comment token
+check, and explanation accuracy always needs your review.
 
 - **`check <paths...>`** prints a diff per file that would change, suggested
   rewrites of existing comments, and why any paths were skipped. Exit code 0
@@ -73,21 +98,36 @@ whycode fix app.py --refactor # let the AI rewrite the code (logic will change)
 Exit code 2 means an error: bad usage, an invalid config, a missing API key,
 a path that doesn't exist, or a file that couldn't be processed.
 
-| Flag                      | Effect                                                                                                                        |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `--comment-level <level>` | `light` (default): summaries and non-obvious "why"; `medium`: also a note per block; `heavy`: near line-by-line, for learners |
-| `--provider <name>`       | `anthropic` (default) or `openrouter`                                                                                         |
-| `--model <id>`            | Claude model, default `claude-sonnet-5-5`                                                                                     |
-| `--staged`                | Only files staged in git; a file with unstaged edits too is skipped                                                           |
-| `--diff <ref>`            | Only files changed since the branch left `<ref>`                                                                              |
-| `--format`                | Format even if the project hasn't adopted the formatter                                                                       |
-| `--no-format`             | Never format; only add comments                                                                                               |
-| `-y`, `--yes`             | `fix` only: accept every file's changes. Existing comments are still never edited automatically                               |
-| `--refactor`              | `fix` only: the AI rewrites the code. Asks for confirmation (showing the exact `testCommand`), and every file needs review    |
-| `-h`, `--help`            | Usage                                                                                                                         |
-| `-v`, `--version`         | Version                                                                                                                       |
+| Flag                       | Effect                                                                                                                              |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `--comment-level <level>`  | `light` (default): summaries, non-obvious "why" and easy-to-break code; `medium`: also a note per block; `heavy`: near line-by-line |
+| `--provider <name>`        | `anthropic` (default) or `openrouter`                                                                                               |
+| `--model <id>`             | Claude model, default `claude-sonnet-5-5`                                                                                           |
+| `--staged`                 | Only files staged in git; a file with unstaged edits too is skipped                                                                 |
+| `--diff <ref>`             | Only files changed since the branch left `<ref>`                                                                                    |
+| `--format`                 | Format even if the project hasn't adopted the formatter                                                                             |
+| `--no-format`              | Never format; only add comments                                                                                                     |
+| `--json`                   | Print one JSON report on stdout (hashes, verdicts, verification, warnings); `fix` needs `--yes`                                     |
+| `--trust-formatter-config` | Let Prettier run code from the project (a JavaScript config, plugins); off by default, and a project can't turn it on itself        |
+| `-y`, `--yes`              | `fix` only: accept every file's changes. Existing comments are still never edited automatically                                     |
+| `--refactor`               | `fix` only: the AI rewrites the code. Asks for confirmation (showing the exact `testCommand`), and every file needs review          |
+| `-h`, `--help`             | Usage                                                                                                                               |
+| `-v`, `--version`          | Version                                                                                                                             |
 
 ## Configuration
+
+For a repeatable review, run `whycode check src --save-plan review.json`, then
+`whycode fix --plan review.json --review-state .whycode-review.json`. Applying a
+saved plan makes no model request. Later checks/fixes with the same
+`--review-state` reuse unchanged reviews and keep pending corrections visible.
+`--refresh` requests fresh model output but still withholds exact rejected
+replacements for unchanged source. Config or tool changes also retain these
+rejections; source edits reset them. Different replacement wording can still be
+offered. Keep the state file out of version control if comments are private.
+
+Light mode asks the model to omit uncertain explanations and obvious validation.
+Comments still need factual review: preserving code tokens does not establish
+that an explanation is true.
 
 Put a `.whycoderc.json` at your repository root; flags override it:
 

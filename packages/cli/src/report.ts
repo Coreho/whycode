@@ -41,7 +41,22 @@ export function renderVerdict(
   verdict: FileVerdict,
   paint: Paint,
 ): string {
-  return `${paint(VERDICT_STYLES[verdict.kind], `${path}: ${verdict.text}`)}\n`;
+  const proposal = verdict.text
+    .replace(
+      /(\d+) comments? added/,
+      (_, count: string) =>
+        `${count} new comment${count === "1" ? "" : "s"} proposed`,
+    )
+    .replace("; comment insertion preserved the checked code tokens", "")
+    .replace(
+      "nothing to change",
+      verdict.text.includes("suggested rewrite")
+        ? "no new comments or formatting proposed"
+        : "no changes proposed",
+    )
+    .replace("no comments were needed", "no new comments proposed")
+    .replace("rewritten by the AI", "rewrite proposed by the AI");
+  return `${paint("bold", `${path} — Preview · Nothing written to this file`)}\n${paint(VERDICT_STYLES[verdict.kind], `${path}: ${proposal}`)}\n`;
 }
 
 /** Most paths shown per group; the rest are counted. */
@@ -60,6 +75,7 @@ export function renderFileResult(result: FileResult, paint: Paint): string {
 /** What a person reviews before accepting a file: the diff and its context. */
 export function renderPreview(result: FileResult, paint: Paint): string {
   return joinSections([
+    renderChecks(result),
     result.changesLogic && result.diff !== ""
       ? renderRefactorWarning(result, paint)
       : "",
@@ -67,6 +83,37 @@ export function renderPreview(result: FileResult, paint: Paint): string {
     renderRefactorDetails(result, paint),
     renderNotes(result, paint),
   ]);
+}
+
+function renderChecks(result: FileResult): string {
+  if (result.status === "skipped") return "";
+  const lines = [
+    `Formatting: ${result.formatted ? "formatter ran (formatting is outside the comment token check)" : "not run"}.`,
+  ];
+  if (result.mode === "refactor") {
+    lines.push("Checks: refactor mode can change program behavior.");
+  } else if (result.verification === "failed") {
+    lines.push(
+      "Checks: comment token check failed; new comments were discarded.",
+    );
+  } else if (result.mode === "comments-only") {
+    lines.push(
+      "Checks: code-token verification is unavailable for this language.",
+    );
+  } else if (result.commentsAdded > 0) {
+    lines.push("Checks: new comment edits preserved the checked code tokens.");
+  }
+  if (result.commentsAdded > 0 || result.commentSuggestions.length > 0) {
+    lines.push(
+      "Review: explanation accuracy still needs your judgment; token checks do not prove it.",
+    );
+  }
+  if (result.commentSuggestions.length > 0) {
+    lines.push(
+      "Existing-comment corrections are separate decisions, checked when applied.",
+    );
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 function joinSections(sections: readonly string[]): string {

@@ -324,6 +324,7 @@ class FixSession {
     this.io.stdout(`${preview}\n`);
     const decision = hasChanges ? await this.decideFile(result.path) : "skip";
     if (decision === "quit") {
+      this.io.stdout(`Nothing written to ${result.path}; review stopped.\n`);
       this.stopped = true;
       return this.markNotReviewed([result.path]);
     }
@@ -349,6 +350,18 @@ class FixSession {
     } else if (!hasChanges) {
       this.unchanged.push(result.path);
     }
+    if (finalCode === result.originalCode) {
+      this.io.stdout(`Nothing written to ${result.path}.\n`);
+    }
+    const remaining =
+      result.commentSuggestions.length -
+      applied.applied.length -
+      suggestions.rejected.length;
+    if (result.commentSuggestions.length > 0) {
+      this.io.stdout(
+        `Existing-comment corrections: ${written ? applied.applied.length : 0} applied, ${suggestions.rejected.length} rejected, ${written ? remaining : remaining + applied.applied.length} not applied.\n`,
+      );
+    }
     if (
       written &&
       (decision === "accept" || decision === "reject" || !hasChanges)
@@ -366,6 +379,9 @@ class FixSession {
 
   private async decideFile(path: string): Promise<FileDecision> {
     if (this.yes) return "accept";
+    this.io.stdout(
+      "This applies the displayed diff. Existing-comment corrections, if any, are separate decisions.\n",
+    );
     return this.choose(
       `Apply these changes to ${path}? [y]es / [n]o / [s]kip / [q]uit: `,
       {

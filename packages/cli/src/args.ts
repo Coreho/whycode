@@ -6,6 +6,7 @@ import type { ChangeScope, CommentLevel, ConfigOverrides } from "@whycode/core";
 export type ParsedArgs =
   | { kind: "help" }
   | { kind: "version" }
+  | { kind: "demo" }
   | {
       kind: "check";
       paths: string[];
@@ -73,6 +74,7 @@ type FlagValues = ReturnType<typeof parseFlags>["values"];
 
 /** The flags each command accepts, besides --help and --version. */
 const COMMAND_FLAGS = {
+  demo: [],
   check: [
     "review-state",
     "refresh",
@@ -151,6 +153,13 @@ function parseCommand(
   const stray = unsupportedFlag(command, values);
   if (stray !== undefined) {
     return usageError(`--${stray} doesn't apply to "whycode ${command}".`);
+  }
+  if (command === "demo") {
+    return paths.length === 0
+      ? { kind: "demo" }
+      : usageError(
+          '"whycode demo" takes no paths; it uses a temporary sample.',
+        );
   }
   const scope = parseScope(values);
   if (typeof scope === "string") return usageError(scope);

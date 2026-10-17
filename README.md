@@ -1,31 +1,50 @@
 # WhyCode
 
-_Last updated: 2026-10-15_
+_Last updated: 2026-10-17_
 
-WhyCode cleans up AI-written code so humans can understand it. It adds
-comments that explain **what** the code does and **why**, checked so they can't
-change the code, and formats it with the project's own formatter.
+WhyCode proposes explanatory comments for AI-written code and formats it with
+the project's own formatter. You review the changes before applying them.
+
+**Experimental and not yet published.** Generated comments can be incorrect,
+redundant, or inconsistent across runs. Token checks on supported languages
+check that comment edits preserve code tokens; they do **not** establish that
+an explanation is true or that runtime behavior is unchanged in every case.
+Review every proposed comment and run your project's tests. Usefulness and time
+savings with independent developers have not yet been established.
+
+Selected source files are sent to the configured AI provider. Secret masking
+is a precaution, not a guarantee that sensitive data will be removed. See
+[PRIVACY.md](PRIVACY.md) before using private code.
 
 It comes as four front-ends that share one core engine: a CLI (`whycode`), a
 Claude Code plugin, a VS Code extension and a GitHub Action.
 
+## Start here
+
+**[Install WhyCode and review your first file](QUICKSTART.md).**
+The CLI is not on npm yet; the quickstart explains how to build and install it.
+Start with `whycode demo`: a prepared, offline example that shows the original
+code, a verified preview, simulated acceptance, and the result in a temporary
+sample. No API key is required and your project files are not read or changed.
+
+Then configure model access and run `whycode fix <one-file> --no-format` to
+review your own file. Windows PowerShell users should use `whycode.cmd`.
+See the [demo walkthrough](docs/demo.md) for what each step means.
+
 ## Status
 
-All eleven build phases in [`CLAUDE.md`](CLAUDE.md) are implemented and
-tested, but nothing is published yet:
+The four front-ends are implemented and tested, with these distribution limits:
 
 | Front-end          | State                                                             |
 | ------------------ | ----------------------------------------------------------------- |
-| CLI                | Packed and install-tested as the npm package `whycode`            |
+| CLI                | Packed and install-tested; first release will be `0.1.0-beta.1`   |
 | Claude Code plugin | Validated, and run end to end in Claude Code from a checkout      |
 | VS Code extension  | Packaged as a `.vsix`; the Marketplace publisher is a placeholder |
 | GitHub Action      | Bundled and tested offline; needs a release with its `dist/`      |
 
-Tasks are tracked in [`backlog/`](#task-tracking).
-
 ## What WhyCode promises
 
-- **Adding comments can't change the code (default, safe mode).** WhyCode
+- **Comment edits are checked for token preservation on supported languages.** WhyCode
   records the code's tokens (everything except comments, as tree-sitter
   parses it) before adding comments and compares them afterwards. If anything
   but comments changed, the comments are thrown away and only the formatting
@@ -45,29 +64,25 @@ Tasks are tracked in [`backlog/`](#task-tracking).
 - **Refactor mode is opt-in.** Only `whycode fix --refactor` lets the AI rewrite
   code, with a warning, a confirmation (which shows the exact `testCommand`
   that will run) and a review of every file.
-- **Private files stay private.** Files git ignores and files that may hold
-  secrets are never read, and likely secrets in the code that is sent are
-  masked. [PRIVACY.md](PRIVACY.md) has the details.
+- **File exclusions and secret masking reduce exposure.** Git-ignored files
+  and files with recognized sensitive names are excluded. Likely secrets in
+  selected source are masked before it is sent to the provider; unrecognized
+  sensitive data can still be sent. [PRIVACY.md](PRIVACY.md) has the details.
 
 ## Front-ends
 
 ### CLI
 
 ```sh
-npm install -g whycode          # once published; needs Node.js 22.12 or newer
-export ANTHROPIC_API_KEY=sk-ant-...
-
-whycode check src               # dry run: diffs and suggestions, writes nothing
-whycode check --diff origin/main # only files changed on this branch
-whycode fix --staged            # only files staged in git
-whycode fix src                 # review each file's diff, write what you accept
-whycode fix . --yes             # accept every file's changes without asking
-whycode fix app.py --refactor   # let the AI rewrite the code (logic will change)
+whycode demo                        # offline prepared example; no key needed
+whycode fix src/example.ts --no-format # first live review, after provider setup
+whycode check src                   # preview only; no source writes
 ```
 
-Until it is published, run `node packages/cli/dist/bin.js` from a checkout
-after `pnpm build`. The package's [README](packages/cli/README.md) doubles as
-its npm page.
+Build and install the CLI using the [quickstart](QUICKSTART.md).
+The package is not published to npm yet.
+For development, run `node packages/cli/dist/bin.js` after `pnpm build`.
+The package's [README](packages/cli/README.md) doubles as its npm page.
 
 - **`check <paths...>`** prints a unified diff for each file that would change,
   suggested rewrites of existing comments, notes (such as a missing formatter),
@@ -87,36 +102,41 @@ its npm page.
     and your `testCommand` result with each diff, and can't be combined with
     `--yes`.
 
-| Flag                      | Effect                                                       |
-| ------------------------- | ------------------------------------------------------------ |
-| `--comment-level <level>` | `light` (default), `medium` or `heavy`                       |
-| `--provider <name>`       | `anthropic` (default) or `openrouter`                        |
-| `--model <id>`            | Claude model, default `claude-sonnet-5-5`                    |
-| `--staged`                | Only files staged in git                                     |
-| `--diff <ref>`            | Only files changed since the branch left `<ref>`             |
-| `--format`                | Format even if the project hasn't adopted the formatter      |
-| `--no-format`             | Never format; only add comments                              |
-| `--save-plan <file>`      | `check` only: save the comment plans for `fix --plan <file>` |
-| `--plan <file>`           | `fix` only: apply a saved plan, no model request             |
-| `--review-state <file>`   | Opt in to remembering reviews (see below)                    |
-| `--refresh`               | With `--review-state`: ignore remembered reviews this run    |
-| `-y`, `--yes`             | `fix` only: accept every file's changes                      |
-| `--refactor`              | `fix` only: let the AI rewrite the code                      |
-| `-h`, `--help`            | Usage                                                        |
-| `-v`, `--version`         | Version                                                      |
+| Flag                       | Effect                                                       |
+| -------------------------- | ------------------------------------------------------------ |
+| `--comment-level <level>`  | `light` (default), `medium` or `heavy`                       |
+| `--provider <name>`        | `anthropic` (default) or `openrouter`                        |
+| `--model <id>`             | Claude model, default `claude-sonnet-5-5`                    |
+| `--staged`                 | Only files staged in git                                     |
+| `--diff <ref>`             | Only files changed since the branch left `<ref>`             |
+| `--format`                 | Format even if the project hasn't adopted the formatter      |
+| `--no-format`              | Never format; only add comments                              |
+| `--save-plan <file>`       | `check` only: save the comment plans for `fix --plan <file>` |
+| `--plan <file>`            | `fix` only: apply a saved plan, no model request             |
+| `--review-state <file>`    | Opt in to remembering reviews (see below)                    |
+| `--refresh`                | With `--review-state`: ignore remembered reviews this run    |
+| `--json`                   | Print one JSON report on stdout (see below)                  |
+| `--trust-formatter-config` | Let Prettier run code from the project's config (see below)  |
+| `-y`, `--yes`              | `fix` only: accept every file's changes                      |
+| `--refactor`               | `fix` only: let the AI rewrite the code                      |
+| `-h`, `--help`             | Usage                                                        |
+| `-v`, `--version`          | Version                                                      |
 
-**Verdicts.** Every processed file gets a one-line verdict, worded the same in
-every front-end:
+**Results.** CLI previews are labeled “Nothing written to this file.” They
+describe comments as proposed, show formatting and check information, and leave
+existing-comment corrections as separate decisions. Only `Wrote <file>` and the
+final written-files summary confirm a save. The underlying result categories
+used by other front-ends and JSON reports are:
 
-| Verdict                                                               | Meaning                                                        |
-| --------------------------------------------------------------------- | -------------------------------------------------------------- |
-| nothing to change                                                     | The file is fine as it is                                      |
-| N comments added; comment insertion preserved the checked code tokens | Comments (and any formatting) passed verification              |
-| formatting only (no comments were needed)                             | Only the formatter changed the file                            |
-| comments discarded because verification failed                        | The AI's comments were thrown away; at most formatting remains |
-| N comments added without verification                                 | A comments-only language, which WhyCode can't verify           |
-| rewritten by the AI, so logic may change                              | Refactor mode                                                  |
-| not processed: _reason_                                               | The file failed, for example because the AI call did           |
+| Verdict                                                               | Meaning                                                                     |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| nothing to change                                                     | No changes proposed in this run; not a code-quality assessment              |
+| N comments added; comment insertion preserved the checked code tokens | Comment insertions passed the token check; formatting is outside that check |
+| formatting only (no comments were needed)                             | Only formatting proposed; the model proposed no new comments                |
+| comments discarded because verification failed                        | The AI's comments were thrown away; at most formatting remains              |
+| N comments added without verification                                 | A comments-only language, which WhyCode can't verify                        |
+| rewritten by the AI, so logic may change                              | Refactor mode                                                               |
+| not processed: _reason_                                               | The file failed, for example because the AI call did                        |
 
 Suggested rewrites of existing comments are counted after the verdict, and
 notes (such as discarded comments or a missing formatter) are always shown,
@@ -149,17 +169,78 @@ again. A plan file is never overwritten.
 `--review-state <file>`, `fix` records each reviewed file's hash, its pending
 suggestions for existing comments and the ones you rejected; later `check` or
 `fix` runs with the same file skip the AI for files that haven't changed, keep
-showing pending suggestions, and don't bring rejected ones back. Any change to
-the file, the config, the prompt or WhyCode invalidates an entry, and
-`--refresh` ignores the remembered reviews for one run. To reset, delete the
-file. Likely secrets in the stored suggestions are masked, as in code sent to
-the AI. Keep the file out of version control if your comments are private.
+showing pending suggestions, and don't bring rejected ones back. Source, config,
+prompt or tool changes invalidate the cached review; `--refresh` requests a fresh
+review for one run. For unchanged source, exact rejected replacements at the same
+comment location are still withheld after refresh or config/tool changes, with a
+count in the output. A differently worded replacement, or one whose location
+cannot be matched unambiguously after formatting/insertions, can still be offered.
+Changing the source resets those decisions. To reset everything, delete the
+state file. Likely secrets are masked both in stored suggestions and when matching
+rejections. Keep the file out of version control if your comments are private.
+
+For repeatable review and application, use the same state file on later runs:
+
+```sh
+whycode check src --save-plan review.json
+whycode fix --plan review.json --review-state .whycode-review.json
+whycode check src --review-state .whycode-review.json
+```
+
+**Comment accuracy.** The model is instructed to omit uncertain explanations,
+check claims against branches and edge cases, and skip obvious validation in
+light mode. Documented behavior of a library or platform the code calls counts
+as a fact it may state; motives, incidents and business rules it can't see do
+not. These are generation rules, not a proof that a comment is true.
+Review explanations as well as diffs: token verification checks code preservation,
+not factual accuracy. Repeated generation can produce different suggestions;
+saved plans preserve an exact reviewed response, and review state can avoid
+regenerating unchanged reviewed files. Neither establishes comment correctness.
 
 **Exit codes:** `check` exits 0 when every file is clean, and 1 when a file
 would change or had its comments discarded, so CI can use it as a gate.
 `fix` exits 0 when it finishes, whatever you chose. Both exit 2 on errors: bad
 usage, an invalid config, a missing API key, a path that doesn't exist, or a
 file that couldn't be processed or written.
+
+**JSON output.** `whycode check --json` and `whycode fix --yes --json` print
+one JSON document on stdout, so CI and other tools never parse terminal text;
+the usual text goes to stderr. `fix --json` needs `--yes`, since stdout can't
+also hold the interactive review. On a usage error nothing is printed to stdout.
+
+```json
+{
+  "tool": "whycode",
+  "version": "0.1.0-beta.1",
+  "command": "check",
+  "exitCode": 1,
+  "files": [
+    {
+      "path": "src/app.ts",
+      "inputSha256": "…",
+      "outputSha256": "…",
+      "verdict": "verified",
+      "verdictText": "2 comments added; comment insertion preserved the checked code tokens",
+      "verification": { "method": "tokens", "outcome": "passed" },
+      "commentsAdded": 2,
+      "formatted": false,
+      "warnings": [],
+      "suggestions": []
+    }
+  ],
+  "skipped": [{ "path": ".env", "reason": "…" }]
+}
+```
+
+- `outputSha256` is the proposed code for `check`, and what is on disk
+  afterwards for `fix`, which also sets `written`.
+- `verdict` is `verified`, `unverified`, `discarded`, `unchanged`, `refactored`
+  or `failed`, the same verdicts as the text output.
+- `verification.method` is `tokens` (insertions were checked against the code's
+  tokens) or `none` (a comments-only language); `outcome` is `passed`,
+  `failed` or `not-run`.
+- `suggestions` are the suggested rewrites of existing comments nobody
+  accepted; `warnings` are the notes the text output shows.
 
 ### Claude Code plugin
 
@@ -253,7 +334,9 @@ requests, which can't read repository secrets. GitHub only accepts suggestions
 on lines inside the PR's diff, so changes
 elsewhere (often formatting) are counted in the review summary instead. Files
 that fail verification or processing are listed there too, and get no
-suggestions. The key is masked in the logs.
+suggestions. Every run also writes a job summary (`$GITHUB_STEP_SUMMARY`) with
+each file's verdict, even a clean run that posts no review. The key is masked
+in the logs.
 
 ## Configuration
 
@@ -309,11 +392,11 @@ the same rules, and skipped paths are always listed with the reason.
 
 ## Comment levels
 
-| Level             | What you get                                                                                                                                                                                  |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `light` (default) | Uncluttered: a summary only where a function's or class's name and signature don't already say what it's for, plus comments only where the "why" isn't obvious. Many functions get no comment |
-| `medium`          | A summary above every function and class, the "why" comments, and a short note for each logical block inside functions                                                                        |
-| `heavy`           | Near line-by-line explanation, for people learning the language or the codebase                                                                                                               |
+| Level             | What you get                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `light` (default) | Uncluttered: a summary only where a function's or class's name and signature don't already say what it's for, plus comments where code is easy to break: ordering and timing, reliance on library or platform behavior, values nothing enforces, error handling that fails open or closed, and tests that depend on each other. Many functions get no comment |
+| `medium`          | A summary above every function and class, the "why" comments, and a short note for each logical block inside functions                                                                                                                                                                                                                                        |
+| `heavy`           | Near line-by-line explanation, for people learning the language or the codebase                                                                                                                                                                                                                                                                               |
 
 At every level the prompts ask for comments that explain why rather than
 restate the code.
@@ -386,6 +469,20 @@ config in a folder above your project never decides its style. A malformed
 `.prettierignore` excludes (any one between the file and the repository's top
 folder, its patterns read relative to its own folder) is never formatted, even
 with `--format`.
+
+**A project's formatter config never runs code without your say-so.** Prettier
+runs a config written in JavaScript or TypeScript (`prettier.config.js`,
+`.prettierrc.mjs` and the like), loads the plugins a config names, and loads a
+shared config package a config points to by name. So on a repository someone
+else wrote, formatting with its config could run its code. WhyCode checks for
+these without asking Prettier and, if it finds one, skips formatting with a
+note. `--trust-formatter-config` lets it run, for repositories you trust. The
+flag can only come from you: a project's `.whycoderc.json` that sets
+`trustFormatterConfig` is refused, and a saved plan never carries it. The
+GitHub Action never runs it, since a pull request controls its own config. The
+VS Code extension relies on workspace trust instead: it doesn't run in
+untrusted workspaces. The other formatters (Ruff, gofmt, rustfmt, CSharpier,
+google-java-format) read only declarative config and are run from your PATH.
 
 Otherwise WhyCode adds comments without reformatting the file (still verified)
 and says so, instead of burying a few comments under hundreds of lines of
@@ -514,10 +611,15 @@ Switching off the token comparison makes every "caught" test fail, so the
 suite really depends on it.
 
 **Accepted suggestions** for existing comments go through the same check, and
-may only take one of three shapes: whole comment lines (rebuilt exactly like
-inserted comments), a line comment that ends a line of code (kept on one
-line), or one `/* block comment */` (which keeps its line breaks when it sits
-next to code, because in JavaScript a line break there can end a statement).
+may only take one of these shapes: whole comment lines (rebuilt exactly like
+inserted comments; a quote that joins the lines into one sentence is matched
+word by word and the rewrite is wrapped to their width), a line comment that
+ends a line of code (kept on one line), one `/* block comment */` (which keeps
+its line breaks when it sits next to code, because in JavaScript a line break
+there can end a statement), or text quoted from inside a block comment on lines
+of its own, such as a JSDoc paragraph. That last shape replaces only the quoted
+words, which must appear in the comment exactly once, keeps the markers and
+`*` prefixes, and re-wraps the rest of the paragraph to its width.
 Python docstrings and Rust doc comments are code, so rewrites of them are
 refused.
 
@@ -557,6 +659,9 @@ as javac decodes it.
 - **API key:** read only from that provider's variable. If it's missing,
   creating the provider fails at once with a clear message, before any network
   call. The key never appears in warnings, errors, or skip reasons.
+- **Errors:** when the service refuses a request, the message includes its
+  own reason (for example OpenRouter's "Key limit exceeded"), on one line and
+  without any links, since a provider may link to the key's settings page.
 - **OpenRouter:** uses OpenRouter's Anthropic-compatible endpoint. Model IDs
   are translated (`claude-sonnet-5-5` becomes `anthropic/claude-sonnet-5.5`),
   and a model written as `vendor/name` is passed through as is.
@@ -623,21 +728,6 @@ native bindings (`allowBuilds` in `pnpm-workspace.yaml`).
 - GitHub Action: `pnpm --filter @whycode/github-action verify-bundle` runs the
   built bundle outside the workspace with fake GitHub and AI clients. A release
   must commit the built `dist/`; see the action's README.
-
-### Task tracking
-
-Tasks are tracked with [Backlog.md](https://github.com/MrLesk/Backlog.md) as
-Markdown files in `backlog/` (install the CLI with `npm install -g backlog.md`).
-
-```sh
-backlog board            # Kanban board in the terminal
-backlog browser          # web UI on http://localhost:6420
-backlog task list --plain
-```
-
-Use the `backlog` CLI rather than editing task files by hand. `CLAUDE.md` and
-`AGENTS.md` tell AI agents to do the same. Prettier skips `backlog/` and
-`AGENTS.md` because the CLI writes them.
 
 ### Repository layout
 

@@ -4,7 +4,8 @@ Runs WhyCode on files changed in a pull request and posts **one COMMENT review**
 with individually applicable `suggestion` blocks. The review is the preview:
 authors choose which suggestions to apply. The action never edits source files,
 creates commits, or pushes to the branch. A clean run with no suggestions,
-skips, or warnings posts nothing; suggestions do not fail the step.
+skips, or warnings posts nothing; suggestions do not fail the step. Every run
+writes a job summary with each file's verdict, shown on the workflow run's page.
 
 See the [project README](../../README.md) for the engine, supported languages,
 configuration, and verification guarantees.
@@ -76,7 +77,10 @@ before processing. They are never saved to configuration or printed.
 `.whycoderc.json` at the checked-out workspace root supplies include/exclude
 patterns, comment level, and model. This front-end always overrides `mode` to
 `safe`, `provider` to `anthropic`, and `testCommand` to `null`; it never executes
-refactor-mode test commands. Invalid inputs/configuration, missing keys, checkout
+refactor-mode test commands. It also never runs code from the pull request's formatter
+config: a JavaScript Prettier config, plugins or a shared config package means
+that file is commented without formatting, and a `.whycoderc.json` that sets
+`trustFormatterConfig` fails the step. Invalid inputs/configuration, missing keys, checkout
 head mismatches, and GitHub API errors fail the step. Per-file read/processing or
 verification failures are reported in the review instead.
 

@@ -2,7 +2,7 @@
 
 A Claude Code plugin with one skill, `/whycode:cleanup`, that cleans up
 AI-written code: it adds comments that explain **what** the code does and
-**why**, checked so they can't change the code, and formats the files with the
+**why**, with token-preservation checks on supported comment edits, and formats the files with the
 project's own formatter when the project uses one. It uses Claude Code's own
 model, so no API key is needed.
 
@@ -13,9 +13,11 @@ works and the configuration reference.
 
 1. Install the WhyCode CLI, which does the real work (Node.js 22.12 or newer):
 
-   ```sh
-   npm install -g whycode
-   ```
+   Follow the [quickstart](../../QUICKSTART.md) to build, pack, and install it
+   from this repository, then run `whycode demo`.
+   The package is **not published to npm yet**.
+   On Windows PowerShell use `npm.cmd` and `whycode.cmd`. No separate API key
+   is needed for this plugin; the demo is also offline.
 
 2. In Claude Code, add this repository as a plugin marketplace and install the
    plugin:
@@ -41,6 +43,11 @@ For each file Claude shows the diff WhyCode produced and asks whether to apply
 it, then asks about any suggested rewrites of existing comments, which you can
 accept one by one. Comment levels are `light` (default), `medium` and `heavy`;
 `.whycoderc.json` settings such as `include` and `exclude` apply as in the CLI.
+
+Start with one file, for example `/whycode:cleanup src/example.ts --no-format`.
+The CLI preview distinguishes proposed changes from writes and explains what
+was checked. Token preservation does not establish explanation accuracy;
+review the comments as well as the diff. Formatting is outside that check.
 
 ## How it works
 

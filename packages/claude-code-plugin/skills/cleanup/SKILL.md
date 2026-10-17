@@ -1,7 +1,7 @@
 ---
 name: cleanup
-description: Clean up AI-written code with WhyCode, using Claude Code's own model. Adds comments that explain what the code does and why, checked so they can't change the code, and formats with the project's own formatter; shows each file's diff and writes only what the user approves.
-argument-hint: "[paths...] [--comment-level light|medium|heavy]"
+description: Propose explanatory comments using Claude Code's own model, with code-token checks on supported comment edits. Preview each file and write only approved changes; explanation accuracy still needs review.
+argument-hint: "[paths...] [--comment-level light|medium|heavy] [--no-format]"
 disable-model-invocation: true
 allowed-tools: Bash(whycode --version) Bash(whycode prompt:*) Bash(whycode preview:*)
 ---
@@ -34,10 +34,13 @@ formatting, insertion, verification, writing). No API key is needed.
 ## Steps
 
 1. Run `whycode --version`. If the command is not found, tell the user to
-   install the WhyCode CLI (`npm install -g whycode`, which needs Node.js 22.12
-   or newer) and stop.
+   build and install the CLI using the repository's QUICKSTART.md
+   (Node.js 22.12 or newer).
+   The package is not published to npm yet. On PowerShell use `npm.cmd` and
+   `whycode.cmd`. Stop until the command is available.
 2. Work out the paths and the optional `--comment-level light|medium|heavy`
-   from the arguments above. If no paths were given, ask the user which files
+   and `--no-format` from the arguments above. Pass `--no-format`, when given,
+   consistently to prompt, preview, and write. If no paths were given, ask the user which files
    or folders to clean up; never default to the whole repository.
 3. Run `whycode prompt <paths...> --list` (add `--comment-level <level>` if
    given). Tell the user how many files WhyCode will process, and list the
@@ -60,11 +63,13 @@ formatting, insertion, verification, writing). No API key is needed.
       The closing `WHYCODE_PLAN` must be on its own line with nothing before
       it. If WhyCode reports an invalid plan, fix the JSON and preview again (at
       most twice), then report the file as failed and move on. If it prints
-      `No changes`, move on.
+      `Nothing to write` and lists no existing-comment suggestions, move on.
 
    4. Show the user the diff exactly as WhyCode printed it, in a `diff` code
-      block, followed by its notes. If verification failed, say plainly that
-      WhyCode discarded the comments and only the formatting is offered.
+      block, followed by its checks and notes. Say explicitly that the preview
+      has not written the file and token checks do not establish explanation
+      accuracy. If verification failed, say that new comments were discarded;
+      offer formatting only if the preview actually contains formatting changes.
       Show each suggested rewrite of an existing comment with its number,
       the original, the suggestion and the reason.
    5. Ask with the AskUserQuestion tool whether to apply this file's changes

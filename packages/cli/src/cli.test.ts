@@ -95,7 +95,7 @@ describe("whycode check", () => {
     const code = await runCli(["check", "app.toy"], io(), deps(noComments));
     expect(code).toBe(0);
     expect(stdout).toBe(
-      "app.toy: nothing to change\n0 files would change, 1 unchanged, 0 skipped.\n",
+      "app.toy — Preview · Nothing written to this file\napp.toy: no changes proposed\nFormatting: formatter ran (formatting is outside the comment token check).\n\n0 files would change, 1 unchanged, 0 skipped.\n",
     );
   });
 

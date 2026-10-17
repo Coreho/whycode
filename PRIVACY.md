@@ -162,6 +162,20 @@ Formatting happens on your machine. WhyCode passes code to the formatter
 google-java-format from your PATH) on standard input and reads the result
 back.
 
+## Code from the project
+
+Two things in a repository can lead WhyCode to run code from it, and each
+needs you to opt in:
+
+- **A Prettier config that runs code:** a JavaScript or TypeScript config file,
+  plugins named in any config, or a shared config package named by a config.
+  WhyCode skips formatting for such a project unless you pass
+  `--trust-formatter-config`. A project's `.whycoderc.json` can't set it, a
+  saved plan never carries it, and the GitHub Action never uses it. The VS Code
+  extension only runs in workspaces you have marked as trusted.
+- **A `testCommand` in refactor mode:** it runs only in `whycode fix --refactor`,
+  after a confirmation that shows the exact command (see below).
+
 ## What WhyCode stores
 
 Nothing, unless you ask it to. WhyCode keeps no cache, no logs and no usage
@@ -175,7 +189,9 @@ only where you name them:
 - `--review-state <file>` remembers reviewed files: their hashes, the pending
   suggestions for existing comments (with likely secrets masked, as in code
   sent to the AI) and the IDs of the ones you rejected. No source code.
-  Delete the file to reset it.
+  Rejection matching uses secret-masked comment text, including after refresh.
+  Config/tool changes discard cached reviews but retain rejection IDs for
+  unchanged source. Delete the file to reset it.
 
 Both are created readable only by your user account where the system
 supports it. Results live in memory for one run and are

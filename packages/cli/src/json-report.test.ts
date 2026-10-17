@@ -98,7 +98,7 @@ describe("--json", () => {
     ]);
     expect(json.files[0]).not.toHaveProperty("written");
     expect(json.skipped).toEqual([expect.objectContaining({ path: ".env" })]);
-    expect(stderr).toContain("a.toy: 1 comment added");
+    expect(stderr).toContain("a.toy: 1 new comment proposed");
   });
 
   it("fix --yes reports what it wrote, with the hash of the file on disk", async () => {

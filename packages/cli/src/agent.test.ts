@@ -168,7 +168,7 @@ describe("agent commands", () => {
     await files({ "a.toy": "# go\nstop\n" });
     await preview("a.toy");
     expect(stdout).toContain(
-      "a.toy: 1 comment added; comment insertion preserved the checked code tokens; 1 suggested rewrite of existing comments to review",
+      "a.toy: 1 new comment proposed; 1 suggested rewrite of existing comments to review",
     );
     expect(stdout).toContain("+# Shut down.");
     expect(stdout).toContain("(1 of 1)");

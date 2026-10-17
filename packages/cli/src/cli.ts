@@ -6,6 +6,7 @@ import { parseCommandLine } from "./args.js";
 import { runPreview, runPrompt, runWrite } from "./agent.js";
 import { runCheck } from "./check.js";
 import { runFix } from "./fix.js";
+import { runDemo } from "./demo.js";
 import type { CliIo } from "./io.js";
 import type { CommandDeps } from "./run.js";
 import { EXIT_CODES } from "./run.js";
@@ -18,11 +19,13 @@ export const defaultDeps: CommandDeps = {
   concurrency: 4,
 };
 
-export const HELP_TEXT = `whycode: formats AI-written code and adds comments that explain what it does and why.
-Comments are checked so they can't change the code, and formatting uses only the
-project's own formatter. Logic changes only if you ask for --refactor.
+export const HELP_TEXT = `whycode: proposes explanatory comments and formatting for your review.
+Comment edits are checked for code-token preservation on supported languages.
+Explanation accuracy and formatting are outside that check.
 
 Usage:
+  whycode demo               Watch a prepared example: no API key, no model call.
+                              Uses a temporary sample and simulated acceptance.
   whycode check <paths...>    Show the diffs and comment suggestions without writing anything.
                               Exits 0 if nothing would change, 1 if something would,
                               and 2 on errors (bad usage, or a file that failed).
@@ -95,6 +98,8 @@ export async function runCli(
       case "version":
         io.stdout(`${cliVersion()}\n`);
         return EXIT_CODES.clean;
+      case "demo":
+        return await runDemo(io);
       case "error":
         io.stderr(`whycode: ${args.message}\n`);
         return EXIT_CODES.error;

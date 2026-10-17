@@ -101,6 +101,14 @@ describe("whycode fix", () => {
       "Apply these changes to c.toy? [y]es / [n]o / [s]kip / [q]uit: ",
     ]);
     expect(stdout).toContain("+# About alpha.");
+    expect(stdout).toContain("Preview · Nothing written to this file");
+    expect(stdout).toContain("a.toy: 1 new comment proposed");
+    expect(stdout).toContain(
+      "Checks: new comment edits preserved the checked code tokens.",
+    );
+    expect(stdout).toContain("Wrote a.toy");
+    expect(stdout).toContain("Nothing written to b.toy.");
+    expect(stdout).not.toContain("Wrote b.toy");
     expect(stdout).toContain(
       [
         "Summary:",
@@ -142,6 +150,9 @@ describe("whycode fix", () => {
     ]);
     expect(stdout).toContain("(1 of 2)");
     expect(stdout).toContain("(2 of 2)");
+    expect(stdout).toContain(
+      "Existing-comment corrections: 1 applied, 1 rejected, 0 not applied.",
+    );
     expect(await read("a.toy")).toBe("# First.\n# New.\nalpha\n# two\nbeta\n");
   });
 
@@ -157,6 +168,12 @@ describe("whycode fix", () => {
       "Apply this suggestion? [y]es / [n]o / [q]uit: ",
     ]);
     expect(await read("a.toy")).toBe("# New.\nalpha\n");
+    expect(stdout).toContain(
+      "no new comments or formatting proposed; 1 suggested rewrite",
+    );
+    expect(stdout).toContain(
+      "Existing-comment corrections: 1 applied, 0 rejected, 0 not applied.",
+    );
   });
 
   it("doesn't offer suggestions when the file's changes were rejected", async () => {
@@ -170,6 +187,9 @@ describe("whycode fix", () => {
     await runCli(["fix", "a.toy"], terminal(["n"]), deps(reply));
     expect(questions).toHaveLength(1);
     expect(stdout).toContain("Not offered: 1 suggested rewrite(s)");
+    expect(stdout).toContain(
+      "Existing-comment corrections: 0 applied, 0 rejected, 1 not applied.",
+    );
     expect(await read("a.toy")).toBe("# old\nalpha\n");
   });
 
