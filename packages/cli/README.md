@@ -4,7 +4,7 @@ Proposes explanatory comments for AI-written code and formats it with your
 project's own formatter when the project uses one. Every change is shown as a
 diff first, and nothing is written until you accept it.
 
-**Experimental and not yet published.** Generated comments can be incorrect,
+**Experimental beta.** Generated comments can be incorrect,
 redundant, or inconsistent across runs. Token checks on supported languages
 check code-token preservation, not factual accuracy or every aspect of runtime
 behavior. Review the explanations and run your project's tests before keeping
@@ -20,14 +20,12 @@ reference and the other front-ends.
 
 ## Install
 
-Build and install the package from the repository. Follow the
+Install the beta directly from npm. Follow the
 [quickstart](https://github.com/Coreho/whycode/blob/main/QUICKSTART.md) for
 PowerShell and shell instructions, provider setup, and your first file.
-The package is not published to npm yet. After building and packing it as
-described in the quickstart, install the resulting archive:
 
 ```sh
-npm install --global ./dist/whycode-0.1.0-beta.1.tgz
+npm install --global @koreokorp/whycode@beta
 whycode demo
 ```
 

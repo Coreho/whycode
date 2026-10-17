@@ -1,5 +1,5 @@
 {
-  "name": "whycode",
+  "name": "@koreokorp/whycode",
   "version": "0.1.0-beta.1",
   "description": "Proposes comments that explain what AI-written code does and why, and formats it with your project's formatter. Every change is previewed first.",
   "keywords": [
@@ -30,7 +30,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "prepublishOnly": "pnpm --filter whycode... build",
+    "prepublishOnly": "pnpm --filter @koreokorp/whycode... build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify-pack": "node scripts/verify-pack.mjs"
   },

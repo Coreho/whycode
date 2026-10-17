@@ -5,7 +5,7 @@ _Last updated: 2026-10-17_
 WhyCode proposes explanatory comments for AI-written code and formats it with
 the project's own formatter. You review the changes before applying them.
 
-**Experimental and not yet published.** Generated comments can be incorrect,
+**Experimental beta.** Generated comments can be incorrect,
 redundant, or inconsistent across runs. Token checks on supported languages
 check that comment edits preserve code tokens; they do **not** establish that
 an explanation is true or that runtime behavior is unchanged in every case.
@@ -22,7 +22,7 @@ Claude Code plugin, a VS Code extension and a GitHub Action.
 ## Start here
 
 **[Install WhyCode and review your first file](QUICKSTART.md).**
-The CLI is not on npm yet; the quickstart explains how to build and install it.
+Install with `npm install --global @koreokorp/whycode@beta` (Node.js 22.12 or newer).
 Start with `whycode demo`: a prepared, offline example that shows the original
 code, a verified preview, simulated acceptance, and the result in a temporary
 sample. No API key is required and your project files are not read or changed.
@@ -37,7 +37,7 @@ The four front-ends are implemented and tested, with these distribution limits:
 
 | Front-end          | State                                                             |
 | ------------------ | ----------------------------------------------------------------- |
-| CLI                | Packed and install-tested; first release will be `0.1.0-beta.1`   |
+| CLI                | npm beta: `0.1.0-beta.1`                                          |
 | Claude Code plugin | Validated, and run end to end in Claude Code from a checkout      |
 | VS Code extension  | Packaged as a `.vsix`; the Marketplace publisher is a placeholder |
 | GitHub Action      | Bundled and tested offline; needs a release with its `dist/`      |
@@ -79,8 +79,7 @@ whycode fix src/example.ts --no-format # first live review, after provider setup
 whycode check src                   # preview only; no source writes
 ```
 
-Build and install the CLI using the [quickstart](QUICKSTART.md).
-The package is not published to npm yet.
+Install the CLI using the [quickstart](QUICKSTART.md).
 For development, run `node packages/cli/dist/bin.js` after `pnpm build`.
 The package's [README](packages/cli/README.md) doubles as its npm page.
 
@@ -718,7 +717,7 @@ packages' install scripts, which try to compile native code. In the repository
 the grammars come from the npm packages, and pnpm is told not to build their
 native bindings (`allowBuilds` in `pnpm-workspace.yaml`).
 
-- CLI: `pnpm --filter whycode verify-pack` packs the package, lists the tarball
+- CLI: `pnpm --filter @koreokorp/whycode verify-pack` packs the package, lists the tarball
   (only `dist/`, `README.md` and `LICENSE`), installs it globally into a
   throwaway folder and runs `whycode --version` and `--help`. Publish with
   `pnpm publish` from `packages/cli`, which turns the `workspace:*` dev

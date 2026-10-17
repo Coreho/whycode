@@ -13,9 +13,8 @@ works and the configuration reference.
 
 1. Install the WhyCode CLI, which does the real work (Node.js 22.12 or newer):
 
-   Follow the [quickstart](../../QUICKSTART.md) to build, pack, and install it
-   from this repository, then run `whycode demo`.
-   The package is **not published to npm yet**.
+   Run `npm install --global @koreokorp/whycode@beta`, then `whycode demo`.
+   See the [quickstart](../../QUICKSTART.md) for platform-specific instructions.
    On Windows PowerShell use `npm.cmd` and `whycode.cmd`. No separate API key
    is needed for this plugin; the demo is also offline.
 

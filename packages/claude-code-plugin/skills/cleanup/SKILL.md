@@ -34,9 +34,9 @@ formatting, insertion, verification, writing). No API key is needed.
 ## Steps
 
 1. Run `whycode --version`. If the command is not found, tell the user to
-   build and install the CLI using the repository's QUICKSTART.md
-   (Node.js 22.12 or newer).
-   The package is not published to npm yet. On PowerShell use `npm.cmd` and
+   install the CLI with `npm install --global @koreokorp/whycode@beta`
+   (Node.js 22.12 or newer; see the repository's QUICKSTART.md).
+   On PowerShell use `npm.cmd` and
    `whycode.cmd`. Stop until the command is available.
 2. Work out the paths and the optional `--comment-level light|medium|heavy`
    and `--no-format` from the arguments above. Pass `--no-format`, when given,

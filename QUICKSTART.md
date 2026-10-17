@@ -4,22 +4,15 @@ Start with one file: see a proposed explanation, review it, then decide whether
 to save it. WhyCode is an experimental beta. Comments can be wrong; a passing
 token check does not establish their accuracy.
 
-## 1. Build and install the CLI
+## 1. Install the CLI
 
-You need **Node.js 22.12 or newer** (which includes npm), Git, and an internet
-connection for dependencies. The CLI is **not published to npm yet**. Build
-the package from this repository:
+You need **Node.js 22.12 or newer** (which includes npm) and an internet
+connection for installation.
 
 **Windows PowerShell**
 
 ```powershell
-npm.cmd install --global pnpm@12.11.2
-git clone https://github.com/Coreho/whycode.git
-cd whycode
-pnpm.cmd install --frozen-lockfile
-pnpm.cmd build
-pnpm.cmd --filter whycode pack --pack-destination ./dist
-npm.cmd install --global .\dist\whycode-0.1.0-beta.1.tgz
+npm.cmd install --global @koreokorp/whycode@beta
 whycode.cmd --version
 whycode.cmd demo
 ```
@@ -27,13 +20,7 @@ whycode.cmd demo
 **macOS / Linux**
 
 ```sh
-npm install --global pnpm@12.11.2
-git clone https://github.com/Coreho/whycode.git
-cd whycode
-pnpm install --frozen-lockfile
-pnpm build
-pnpm --filter whycode pack --pack-destination ./dist
-npm install --global ./dist/whycode-0.1.0-beta.1.tgz
+npm install --global @koreokorp/whycode@beta
 whycode --version
 whycode demo
 ```
@@ -126,7 +113,7 @@ formatter. Formatting is separate from the comment token check.
   global executables in the folder printed by `npm prefix --global` on Windows,
   or its `bin` subfolder on macOS/Linux. That folder must be on your PATH.
 - **Permission denied during global installation:** use a directory you own,
-  for example `npm install --global --prefix ./whycode-local ./dist/whycode-0.1.0-beta.1.tgz`.
+  for example `npm install --global --prefix ./whycode-local @koreokorp/whycode@beta`.
   Run `./whycode-local/bin/whycode demo` on macOS/Linux or
   `.\whycode-local\whycode.cmd demo` on Windows (use `npm.cmd` there).
 - **Model unavailable:** use `--model` with a model your configured provider
