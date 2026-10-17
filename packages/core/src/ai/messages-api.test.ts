@@ -109,7 +109,11 @@ describe("failures become readable messages", () => {
     ],
     [
       claudeApiError(403, "forbidden"),
-      "this API key is not allowed to use vendor/model-1 (403).",
+      "the Test API refused the request (403): forbidden",
+    ],
+    [
+      claudeApiError(403, ""),
+      "the Test API refused the request (403); the API key may not be allowed to use vendor/model-1.",
     ],
     [
       claudeApiError(404, "not found"),
@@ -137,6 +141,30 @@ describe("failures become readable messages", () => {
   ])("%s", async (error, message) => {
     const { provider } = providerFor(error);
     await expect(provider.complete(request)).rejects.toThrow(message);
+  });
+
+  it("keeps the provider's reason for a refusal but drops its links", async () => {
+    // OpenRouter's reply for a key over its spending limit; the link names the key.
+    const { provider } = providerFor(
+      claudeApiError(
+        403,
+        "Key limit exceeded (total limit). Manage it using https://openrouter.ai/workspaces/default/keys/1a0ad2",
+      ),
+    );
+    const failure = provider.complete(request);
+    await expect(failure).rejects.toThrow(
+      "the Test API refused the request (403): Key limit exceeded (total limit).",
+    );
+    await expect(failure).rejects.not.toThrow(/openrouter\.ai|1a0ad2/);
+  });
+
+  it("adds the provider's reason to a fixed explanation, on one line", async () => {
+    const { provider } = providerFor(
+      claudeApiError(401, "Your key\nwas revoked."),
+    );
+    await expect(provider.complete(request)).rejects.toThrow(
+      'Check TEST_API_KEY. The service said: "Your key was revoked."',
+    );
   });
 
   it("never lets the API key into an error message", async () => {
@@ -168,7 +196,7 @@ describe("failures become readable messages", () => {
     );
     expect(result.status).toBe("skipped");
     expect(result.skipReason).toBe(
-      'AI provider "test" failed: the Test API is rate limiting requests (429), even after retries. Try again later.',
+      'AI provider "test" failed: the Test API is rate limiting requests (429), even after retries. Try again later. The service said: "slow down"',
     );
   });
 });

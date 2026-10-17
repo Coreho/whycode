@@ -6,6 +6,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { transformJSONSchema } from "@anthropic-ai/sdk/lib/transform-json-schema";
 import { redactSecrets } from "../privacy.js";
+import { withoutHiddenCharacters } from "../text.js";
 import type { AIProvider, AIRequest } from "./provider.js";
 
 // Derived from the SDK method itself, so it always matches the installed SDK.
@@ -162,16 +163,30 @@ function describeFailure(
 ): string {
   const service = backend.serviceName;
   if (error instanceof Anthropic.AuthenticationError) {
-    return `${service} rejected the API key (401). Check ${backend.keyVariable}.`;
+    return withReason(
+      `${service} rejected the API key (401). Check ${backend.keyVariable}.`,
+      error,
+    );
   }
   if (error instanceof Anthropic.PermissionDeniedError) {
-    return `this API key is not allowed to use ${modelId} (403).`;
+    // A 403 has many causes (a model the key can't use, a spending limit,
+    // a region), so the provider's own reason is the useful part.
+    const reason = providerReason(error);
+    return reason === undefined
+      ? `${service} refused the request (403); the API key may not be allowed to use ${modelId}.`
+      : `${service} refused the request (403): ${reason}`;
   }
   if (error instanceof Anthropic.NotFoundError) {
-    return `model "${modelId}" was not found or is not available to this API key (404).`;
+    return withReason(
+      `model "${modelId}" was not found or is not available to this API key (404).`,
+      error,
+    );
   }
   if (error instanceof Anthropic.RateLimitError) {
-    return `${service} is rate limiting requests (429), even after retries. Try again later.`;
+    return withReason(
+      `${service} is rate limiting requests (429), even after retries. Try again later.`,
+      error,
+    );
   }
   if (error instanceof Anthropic.APIConnectionTimeoutError) {
     return `the request to ${service} timed out.`;
@@ -183,28 +198,63 @@ function describeFailure(
     const status = typeof error.status === "number" ? error.status : undefined;
     const known =
       status === undefined ? undefined : backend.statusMessages?.[status];
-    if (known !== undefined) return known;
+    if (known !== undefined) return withReason(known, error);
     const statusText = status === undefined ? "" : ` ${status}`;
-    return `${service} returned an error${statusText}: ${serviceMessage(error)}`;
+    const detail = providerReason(error) ?? oneShortLine(error.message);
+    return `${service} returned an error${statusText}: ${detail}`;
   }
   return error instanceof Error ? error.message : String(error);
 }
 
+const MAX_REASON_LENGTH = 200;
+
+/** A fixed explanation followed by the provider's own reason, when it gave one. */
+function withReason(
+  message: string,
+  error: Error & { error?: unknown },
+): string {
+  const reason = providerReason(error);
+  return reason === undefined
+    ? message
+    : `${message} The service said: "${reason}"`;
+}
+
 /**
  * The service's own explanation from an error response body
- * ({"error": {"message": "..."}}, used by Anthropic and OpenRouter), falling
- * back to the SDK's message, which embeds the raw JSON.
+ * ({"error": {"message": "..."}}, used by Anthropic and OpenRouter), as one
+ * short line, or undefined when the body has none.
  */
-function serviceMessage(error: Error & { error?: unknown }): string {
+function providerReason(
+  error: Error & { error?: unknown },
+): string | undefined {
   const body = error.error;
   if (
-    isRecord(body) &&
-    isRecord(body.error) &&
-    typeof body.error.message === "string"
+    !isRecord(body) ||
+    !isRecord(body.error) ||
+    typeof body.error.message !== "string"
   ) {
-    return body.error.message;
+    return undefined;
   }
-  return error.message;
+  const reason = oneShortLine(body.error.message);
+  return reason === "" ? undefined : reason;
+}
+
+/**
+ * Text as one line of limited length, without the sentences that hold a
+ * link: a provider may link to the key's own settings page, which
+ * identifies the key.
+ */
+function oneShortLine(text: string): string {
+  const sentences = withoutHiddenCharacters(text)
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/(?<=[.!?])\s+/);
+  const kept = sentences
+    .filter((sentence) => !/https?:\/\/|www\./i.test(sentence))
+    .join(" ");
+  return kept.length > MAX_REASON_LENGTH
+    ? `${kept.slice(0, MAX_REASON_LENGTH - 3)}...`
+    : kept;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
