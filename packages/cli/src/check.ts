@@ -2,7 +2,8 @@
 // each and prints a verdict and what would change; nothing is written. The
 // exit code is 1 when any file would change or had its comments discarded,
 // so CI can use it as a gate, and 2 when a file could not be processed (e.g.
-// the AI call failed), so a failure never passes.
+// the AI call failed), so a failure never passes. --json prints the same
+// results as one JSON report.
 import type { ChangeScope, ConfigOverrides } from "@whycode/core";
 import { resolve } from "node:path";
 import { capturePlanFile, savePlan } from "./saved-plan.js";
@@ -10,6 +11,7 @@ import type { SavedFile } from "./saved-plan.js";
 import { ReviewState } from "./review-state.js";
 import { fileVerdict } from "@whycode/core";
 import { forEachInOrder } from "./in-order.js";
+import { jsonFile, renderJsonReport, textOnStderr } from "./json-report.js";
 import type { CliIo } from "./io.js";
 import type { CheckSummary, Paint, Skip } from "./report.js";
 import {
@@ -37,6 +39,7 @@ export async function runCheck(
   planPath?: string,
   reviewStatePath?: string,
   refresh = false,
+  json = false,
 ): Promise<number> {
   // check only ever runs safe mode; refactor mode belongs to `fix --refactor`.
   const run = await prepareRun(
@@ -48,7 +51,10 @@ export async function runCheck(
   );
   if (run === undefined) return EXIT_CODES.error;
 
-  const report = new CheckReport(io, painter(io.color));
+  // With --json the usual text goes to stderr and stdout carries the report.
+  const out = json ? textOnStderr(io) : io;
+  const report = new CheckReport(out, painter(io.color));
+  const outcomes: FileOutcome[] = [];
   report.addSkips(run.skips);
   const entries: SavedFile[] = [];
   const state =
@@ -89,7 +95,11 @@ export async function runCheck(
         if (captured.entry) entries.push(captured.entry);
         return captured.outcome;
       },
-      (outcome) => report.add(state?.filterRejected(outcome) ?? outcome),
+      (outcome) => {
+        const shown = state?.filterRejected(outcome) ?? outcome;
+        outcomes.push(shown);
+        report.add(shown);
+      },
     );
   }
   const exitCode = report.finish();
@@ -100,8 +110,23 @@ export async function runCheck(
       overrides,
       entries.sort((a, b) => a.path.localeCompare(b.path)),
     );
-    io.stdout(
+    out.stdout(
       `Saved review plan: ${planPath}. Apply with whycode fix --plan <saved plan> (no model request).\n`,
+    );
+  }
+  if (json) {
+    io.stdout(
+      renderJsonReport({
+        command: "check",
+        exitCode,
+        files: outcomes.flatMap((o) =>
+          "result" in o ? [jsonFile(o.result)] : [],
+        ),
+        skipped: [
+          ...run.skips,
+          ...outcomes.flatMap((o) => ("skip" in o ? [o.skip] : [])),
+        ],
+      }),
     );
   }
   return exitCode;

@@ -48,6 +48,12 @@ export async function main(): Promise<void> {
       },
       github: githubClient(github.getOctokit(token)),
       maskSecret: core.setSecret,
+      // Outside a runner (or on older ones) there is no job summary to write.
+      writeSummary: process.env.GITHUB_STEP_SUMMARY
+        ? async (markdown) => {
+            await core.summary.addRaw(markdown).write();
+          }
+        : undefined,
     });
   } catch (error) {
     // The message says what to fix (e.g. a missing key). Registered secrets

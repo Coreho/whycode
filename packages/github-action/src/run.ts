@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { promisify } from "node:util";
 import {
+  fileVerdict,
   collectFiles,
   createConfiguredProvider,
   defaultAdapters,
@@ -55,6 +56,8 @@ export interface ActionOptions {
   provider?: AIProvider;
   adapters?: readonly LanguageAdapter[];
   readHead?: () => Promise<string>;
+  /** Writes the job summary ($GITHUB_STEP_SUMMARY) when the runner provides one. */
+  writeSummary?: (markdown: string) => Promise<void>;
 }
 
 /** Treat webhook contents as data; never derive a command from the PR. */
@@ -92,15 +95,49 @@ function summaryText(text: string): string {
     .replace(/[\r\n]/g, " ");
 }
 
+/** Markdown for the job summary: every file's verdict, then the notes. */
+function jobSummary(
+  verdicts: readonly { path: string; verdict: string }[],
+  notes: readonly string[],
+  suggestionCount: number,
+  redact: (text: string) => string,
+): string {
+  // Table cells also can't contain a pipe, which would start a new cell.
+  const cell = (text: string) =>
+    summaryText(redact(text)).replace(/\|/g, "&#124;");
+  const lines = ["## WhyCode", ""];
+  if (verdicts.length === 0) lines.push("No reviewable files changed.");
+  else {
+    lines.push("| File | Result |", "| --- | --- |");
+    for (const { path, verdict } of verdicts) {
+      lines.push(`| ${cell(path)} | ${cell(verdict)} |`);
+    }
+  }
+  lines.push(
+    "",
+    suggestionCount === 0
+      ? "No suggestions were posted."
+      : `${suggestionCount} suggestion(s) were posted as one review on the pull request.`,
+  );
+  if (notes.length > 0) {
+    lines.push(
+      "",
+      "Notes:",
+      ...notes.map((note) => `- ${summaryText(redact(note))}`),
+    );
+  }
+  return `${lines.join("\n")}\n`;
+}
+
 async function previewFile(
   file: CollectedFile,
   metadata: ChangedFile,
   config: WhycodeConfig,
   deps: PipelineDeps,
-): Promise<FileReview> {
-  const skipped = (reason: string): FileReview => ({
-    comments: [],
-    notes: [reason],
+): Promise<{ review: FileReview; verdict: string }> {
+  const skipped = (reason: string) => ({
+    review: { comments: [], notes: [reason] },
+    verdict: reason,
   });
   try {
     const source = await readSourceFile(file.absolutePath);
@@ -117,7 +154,10 @@ async function previewFile(
       config,
       deps,
     );
-    return await reviewFile(result, metadata.patch, deps.adapters);
+    return {
+      review: await reviewFile(result, metadata.patch, deps.adapters),
+      verdict: fileVerdict(result).text,
+    };
   } catch {
     // Exception details may contain source text or credentials; keep the review safe.
     return skipped("processing failed; no suggestions posted");
@@ -249,16 +289,21 @@ export async function runAction(options: ActionOptions): Promise<void> {
       .map((file) => `${file.filename}: skipped — removed`),
   );
   const comments: ReviewComment[] = [];
+  const verdicts: { path: string; verdict: string }[] = [];
   for (const file of collection.files) {
     // Do not process directory descendants absent from the API's exact file list.
     const metadata = byPath.get(file.path);
     if (!metadata) continue;
-    const review = await previewFile(file, metadata, config, {
+    const { review, verdict } = await previewFile(file, metadata, config, {
       provider,
       adapters,
     });
+    verdicts.push({ path: file.path, verdict });
     appendReview(file.path, review, comments, notes, redact);
   }
+  await options.writeSummary?.(
+    jobSummary(verdicts, notes, comments.length, redact),
+  );
   if (!notes.length && !comments.length) return;
   if ((await github.getHead(request)) !== pr.sha)
     throw new Error("PR head advanced during processing; rerun WhyCode.");

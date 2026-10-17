@@ -68,6 +68,58 @@ afterEach(async () => {
   );
 });
 
+describe("job summary", () => {
+  it("writes each file's verdict and the suggestion count", async () => {
+    const { options } = await fixture();
+    const summaries: string[] = [];
+    await runAction({
+      ...options,
+      writeSummary: (markdown) => {
+        summaries.push(markdown);
+        return Promise.resolve();
+      },
+    });
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toContain("## WhyCode");
+    expect(summaries[0]).toContain(
+      "| a.toy | 1 comment added; comment insertion preserved the checked code tokens |",
+    );
+    expect(summaries[0]).toContain(
+      "1 suggestion(s) were posted as one review on the pull request.",
+    );
+  });
+
+  it("is written for a clean run too, which posts no review", async () => {
+    const { options, github } = await fixture();
+    const summaries: string[] = [];
+    await runAction({
+      ...options,
+      provider: new FakeAIProvider(commentPlanReply({})),
+      writeSummary: (markdown) => {
+        summaries.push(markdown);
+        return Promise.resolve();
+      },
+    });
+    expect(github.createReview).not.toHaveBeenCalled();
+    expect(summaries[0]).toContain("| a.toy | nothing to change |");
+    expect(summaries[0]).toContain("No suggestions were posted.");
+  });
+
+  it("escapes markup in file names", async () => {
+    const { options, github } = await fixture({ "a_b.toy": "run()\n" });
+    github.listFiles.mockResolvedValue([changed("a_b.toy", "run()\n")]);
+    const summaries: string[] = [];
+    await runAction({
+      ...options,
+      writeSummary: (markdown) => {
+        summaries.push(markdown);
+        return Promise.resolve();
+      },
+    });
+    expect(summaries[0]).toContain("| a&#95;b.toy |");
+  });
+});
+
 describe("runAction", () => {
   it("processes only PR paths, posts one COMMENT review, and never writes files", async () => {
     const { options, provider, github, workspace, maskSecret } = await fixture({

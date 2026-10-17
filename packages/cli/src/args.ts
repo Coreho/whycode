@@ -14,6 +14,8 @@ export type ParsedArgs =
       savePlan?: string;
       reviewState?: string;
       refresh?: boolean;
+      /** Print one JSON report on stdout instead of the usual text. */
+      json?: boolean;
     }
   | {
       kind: "fix";
@@ -24,6 +26,7 @@ export type ParsedArgs =
       plan?: string;
       reviewState?: string;
       refresh?: boolean;
+      json?: boolean;
     }
   | {
       kind: "prompt";
@@ -59,6 +62,7 @@ const OPTIONS = {
   format: { type: "boolean" },
   "no-format": { type: "boolean" },
   diff: { type: "string" },
+  json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
   version: { type: "boolean", short: "v" },
 } as const;
@@ -79,6 +83,7 @@ const COMMAND_FLAGS = {
     "diff",
     "format",
     "no-format",
+    "json",
   ],
   fix: [
     "review-state",
@@ -93,6 +98,7 @@ const COMMAND_FLAGS = {
     "diff",
     "format",
     "no-format",
+    "json",
   ],
   prompt: ["comment-level", "list", "format", "no-format"],
   preview: ["plan", "format", "no-format"],
@@ -169,6 +175,7 @@ function parseCommand(
       paths,
       overrides,
       scope,
+      ...(values.json === true ? { json: true } : {}),
       ...(values["save-plan"] === undefined
         ? {}
         : { savePlan: values["save-plan"] }),
@@ -186,6 +193,11 @@ function parseCommand(
   if (values.refactor === true) overrides.mode = "refactor";
   if (values.plan !== undefined && values.refactor === true)
     return usageError("Saved plans only support safe mode.");
+  // stdout carries the JSON report, so there is no room for the review prompts.
+  if (values.json === true && !yes)
+    return usageError(
+      "--json with fix needs --yes: stdout carries the JSON report, so there's no room for the interactive review.",
+    );
   return {
     kind: "fix",
     ...persistence,
@@ -193,6 +205,7 @@ function parseCommand(
     overrides,
     yes,
     scope,
+    ...(values.json === true ? { json: true } : {}),
     ...(values.plan === undefined ? {} : { plan: values.plan }),
   };
 }

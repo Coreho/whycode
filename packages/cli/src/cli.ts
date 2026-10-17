@@ -1,7 +1,6 @@
 // The `whycode` command: parses the arguments, runs the chosen command and
 // turns failures into a message and exit code 2. bin.ts calls it with the
 // real process; tests call it with fake I/O and a fake AI provider.
-import { readFileSync } from "node:fs";
 import { createConfiguredProvider, defaultAdapters } from "@whycode/core";
 import { parseCommandLine } from "./args.js";
 import { runPreview, runPrompt, runWrite } from "./agent.js";
@@ -10,6 +9,7 @@ import { runFix } from "./fix.js";
 import type { CliIo } from "./io.js";
 import type { CommandDeps } from "./run.js";
 import { EXIT_CODES } from "./run.js";
+import { cliVersion } from "./version.js";
 
 export const defaultDeps: CommandDeps = {
   adapters: defaultAdapters,
@@ -66,6 +66,9 @@ Options:
                               ignores the remembered reviews for this run.
   -y, --yes                   fix: apply every file's changes without asking. Existing
                               comments are still never edited. Not allowed with --refactor.
+  --json                      check/fix: print one JSON report on stdout (per-file hashes,
+                              verdicts, verification, warnings, suggestions); the usual
+                              text goes to stderr. fix --json needs --yes.
   --refactor                  fix: let the AI rewrite the code. Logic WILL change; asks
                               for confirmation (showing the exact testCommand that will
                               run), and every file needs your review.
@@ -102,6 +105,7 @@ export async function runCli(
           args.savePlan,
           args.reviewState,
           args.refresh,
+          args.json,
         );
       case "fix":
         return await runFix(args.paths, args, io, deps);
@@ -118,18 +122,4 @@ export async function runCli(
     io.stderr(`whycode: ${message}\n`);
     return EXIT_CODES.error;
   }
-}
-
-/** The version in this package's package.json, one folder above src/ and dist/. */
-function cliVersion(): string {
-  const packageJson: unknown = JSON.parse(
-    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-  );
-  const version =
-    typeof packageJson === "object" &&
-    packageJson !== null &&
-    "version" in packageJson
-      ? packageJson.version
-      : undefined;
-  return typeof version === "string" ? version : "unknown";
 }

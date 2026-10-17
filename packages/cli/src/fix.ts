@@ -22,6 +22,7 @@ import { relative, resolve, sep } from "node:path";
 import { loadPlan, replayPlan } from "./saved-plan.js";
 import { ReviewState } from "./review-state.js";
 import { forEachInOrder } from "./in-order.js";
+import { jsonFile, renderJsonReport, textOnStderr } from "./json-report.js";
 import type { CliIo } from "./io.js";
 import type { Paint, Skip } from "./report.js";
 import {
@@ -50,6 +51,8 @@ export interface FixOptions {
   plan?: string;
   reviewState?: string;
   refresh?: boolean;
+  /** Print one JSON report on stdout; needs `yes`, as stdout can't also hold the review. */
+  json?: boolean;
 }
 
 const NO_TERMINAL_MESSAGE = `whycode: nothing was written because there is no terminal to review the changes in.
@@ -93,6 +96,8 @@ export async function runFix(
   }
 
   const paint = painter(io.color);
+  // With --json the usual text goes to stderr and stdout carries the report.
+  const out = options.json === true ? textOnStderr(io) : io;
   const state =
     options.reviewState === undefined
       ? undefined
@@ -102,7 +107,7 @@ export async function runFix(
           run.config,
           deps.adapters,
         );
-  const session = new FixSession(io, paint, options.yes, deps.adapters, state);
+  const session = new FixSession(out, paint, options.yes, deps.adapters, state);
   session.addSkips(run.skips);
   if (run.files.length > 0) {
     if (refactor && !(await confirmRefactor(io, paint, run))) {
@@ -116,7 +121,19 @@ export async function runFix(
   }
   const exitCode = session.finish();
   if (options.scope?.kind === "staged") {
-    io.stdout(stagingNote(session.writtenPaths, run.rootDir, io.cwd));
+    out.stdout(stagingNote(session.writtenPaths, run.rootDir, io.cwd));
+  }
+  if (options.json === true) {
+    io.stdout(
+      renderJsonReport({
+        command: "fix",
+        exitCode,
+        files: session.reviewed.map((result) =>
+          jsonFile(result, session.writtenPaths.includes(result.path)),
+        ),
+        skipped: [...session.skipped],
+      }),
+    );
   }
   await state?.flush();
   return exitCode;
@@ -251,6 +268,15 @@ class FixSession {
   private readonly unchanged: string[] = [];
   private readonly skips: Skip[] = [];
   private readonly failures: Skip[] = [];
+  private readonly results: FileResult[] = [];
+  /** Every pipeline result reviewed, in order, for the --json report. */
+  get reviewed(): readonly FileResult[] {
+    return this.results;
+  }
+  /** Paths passed over, with the reason. */
+  get skipped(): readonly Skip[] {
+    return this.skips;
+  }
 
   constructor(
     private readonly io: CliIo,
@@ -273,6 +299,7 @@ class FixSession {
     outcome = this.state?.filterRejected(outcome) ?? outcome;
     if ("skip" in outcome) return this.addSkips([outcome.skip]);
     const { result, file } = outcome;
+    this.results.push(result);
     this.io.stdout(renderVerdict(result.path, fileVerdict(result), this.paint));
     if (result.status === "skipped") {
       this.failures.push({
