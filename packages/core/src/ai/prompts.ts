@@ -19,11 +19,14 @@ const ROLE = `You write explanatory comments for source code that was generated 
 
 const GOOD_COMMENTS = `What makes a good comment:
 - It explains why: the intent, a constraint, a trade-off, an edge case, or a consequence that isn't obvious. Readers can already see what each line does.
-- It is specific to this code. "Retries because the payment API returns 503 during deploys" is useful; "Retry logic" is not.
+- It is specific to this code. "Retries only 429 and 5xx responses" is useful when the condition proves it; "Retry logic" is not. Do not invent a deployment incident or other external reason.
 - It is short. One sentence is usually enough; use two or three lines only when the reasoning needs them.
 - It is plain and factual, written the way a careful engineer explains code to a colleague. Skip filler such as "This function..." or "Here we...".
 - It doesn't restate names or types ("Increment the counter", "Returns a string").
-- It doesn't invent reasons. If the reason behind something isn't evident from the code, describe its purpose instead of guessing at a motive.
+- It doesn't invent reasons. State observable behavior or a consequence supported by the code. Intent, business policy, historical reasons and external guarantees require explicit supporting context; an existing comment is a claim to check, not proof. When the rationale is uncertain, omit the comment rather than guessing or hedging.
+- Before making a claim, look for a counterexample in the branches, boundary values, exceptions, rounding, and aliasing. Words such as "always", "never", "safe", "only" and "otherwise" require support across all relevant paths. A positive-integer guard rejects fractions too: do not claim every rejected value would skip a loop.
+- Do not claim rounding prevents every floating-point error, a shallow copy prevents nested mutation, a retry catches exceptions it does not catch, or a local check guarantees behavior of an external dependency.
+- Distinguish an algorithm's usual purpose from its guarantees. If a claim needs input preconditions that this code does not enforce, state those conditions explicitly or omit the claim. Prefer a precise local observation over a broad promise that totals are exact, delivery succeeds, or an error reaches the caller; finally blocks and unchecked inputs can invalidate those promises.
 - It earns its place. When a reader would learn nothing new from a comment, leave it out: fewer, better comments keep the code easy to read.`;
 
 const PLACEMENT = `Where comments go:
@@ -39,7 +42,7 @@ List an existing comment in existingCommentSuggestions only when it is wrong, mi
 
 const LEVEL_GUIDANCE: Readonly<Record<CommentLevel, string>> = {
   light: `Comment level: light.
-Keep the code uncluttered: a typical file needs only a few comments, and many functions need none. Add a one-line summary above a function, method, or class only when its name and signature don't already make its purpose clear, saying what it is for rather than how it works; skip it for self-explanatory code such as small helpers, simple getters, event handlers, and straightforward components. Inside function bodies, comment only where the reason behind the code isn't obvious: workarounds, ordering that matters, magic numbers, deliberate trade-offs, surprising edge cases. Most lines get no comment.`,
+Keep the code uncluttered: a typical file needs only a few comments, and many functions need none. An empty insertions list is a successful result. Add a one-line summary above a function, method, or class only when its name and signature don't already make its purpose clear, saying what it is for rather than how it works; skip it for self-explanatory code such as small helpers, simple getters, event handlers, and straightforward components. Skip obvious validation, error messages, and loops whose names and conditions already explain them. Inside function bodies, explain only non-obvious consequences demonstrated by the code, such as ordering, rounding boundaries or aliasing. Never fill a comment quota. If existing comments already explain those consequences, return no insertions; do not add a second explanation of the same fact. Most lines get no comment.`,
   medium: `Comment level: medium.
 Add a one-line summary above each function, method, and class that lacks one, saying what it is for rather than how it works, and comment non-obvious reasons as at the light level. Also put a short note above each logical block inside a function (for example setup, validation, the main loop, cleanup), so a reader can skim its structure. Still skip lines whose purpose is obvious.`,
   heavy: `Comment level: heavy.
@@ -56,7 +59,11 @@ const EXAMPLE = `Example. For this code, at the light level:
 7|     return CACHED_RATES
 
 a good reply is:
-{"insertions":[{"line":1,"position":"above","text":"Fetch current exchange rates, falling back to the cached copy if the service stays unreachable."},{"line":6,"position":"above","text":"Back off exponentially (1s, 2s, 4s) so retries don't pile onto a service that is already struggling."}],"existingCommentSuggestions":[]}`;
+{"insertions":[{"line":6,"position":"above","text":"Waits after every timeout, including the last attempt before returning cached rates."}],"existingCommentSuggestions":[]}
+
+For a helper that only checks a positive integer and returns it, the light-level reply is:
+{"insertions":[],"existingCommentSuggestions":[]}
+The validation is already explicit; a speculative explanation would add risk, not understanding.`;
 
 const REPLY_FORMAT = `Reply with JSON only, in this shape:
 {"insertions":[{"line":<number>,"position":"above","text":"<comment text>"}],"existingCommentSuggestions":[{"line":<number>,"original":"<text>","suggested":"<text>","reason":"<text>"}]}`;
