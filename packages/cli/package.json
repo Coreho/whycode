@@ -1,7 +1,7 @@
 {
   "name": "whycode",
-  "version": "0.1.0",
-  "description": "Cleans up AI-written code: formats it and adds comments that explain what it does and why.",
+  "version": "0.1.0-beta.1",
+  "description": "Proposes comments that explain what AI-written code does and why, and formats it with your project's formatter. Every change is previewed first.",
   "keywords": [
     "ai",
     "claude",
@@ -11,6 +11,13 @@
     "cli"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Coreho/whycode.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/Coreho/whycode#readme",
+  "bugs": "https://github.com/Coreho/whycode/issues",
   "type": "module",
   "bin": {
     "whycode": "./dist/bin.js"
@@ -23,6 +30,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "prepublishOnly": "pnpm --filter whycode... build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify-pack": "node scripts/verify-pack.mjs"
   },
