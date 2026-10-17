@@ -3,7 +3,26 @@ dist/
 coverage/
 *.tsbuildinfo
 *.log
-validation/runs/
+# Local evaluation reports, fixtures, and pilot materials.
+/validation/
+
+# Internal project, research, and teaching material stays local.
+/backlog/
+/AGENTS.md
+/CLAUDE.md
+/MISSION.md
+/NOTES.md
+/RESOURCES.md
+/marketing/
+/pilot/
+/evaluation/
+/lessons/
+/reference/
+/assets/
+/docs/pilot-*.md
+/scripts/prepare-pilot.mjs
+/.semgrep-vibe.yml
+/semgrep-report.json
 
 # Secrets: never commit these (WhyCode also refuses to send them to an AI).
 .env*
