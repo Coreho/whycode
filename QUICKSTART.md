@@ -107,6 +107,10 @@ formatter. Formatting is separate from the comment token check.
 
 ## If installation gets stuck
 
+- **`EEXIST` for `whycode.cmd` after installing an earlier local archive:**
+  run `npm.cmd uninstall --global whycode`, then retry
+  `npm.cmd install --global @koreokorp/whycode@beta`. The old unscoped package
+  and the published scoped package use the same command name.
 - **PowerShell blocks scripts:** use `npm.cmd` and `whycode.cmd` as shown;
   no execution-policy change is needed.
 - **Command not found after installation:** reopen the terminal. npm puts
